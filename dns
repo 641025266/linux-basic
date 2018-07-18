@@ -1,0 +1,828 @@
+﻿dns案例：
+当用户在浏览器当中输入一个网站，说说计算机对dns解析经过那些流程？注：本机跟本地dns还没有缓存。
+答案：
+a.用户输入网址到浏览器；
+b.浏览器发出DNS请求信息；
+c.计算机首先查询本机/etc/hosts文件，看是否存在，存在直接返回结果，不存在，继续下一步；
+d.计算机按照本地DNS的顺序，向合法dns服务器查询IP结果；
+e.合法dns服务器返回dns结果给本地dns，本地dns并缓存该查询结果，直到TTL过期，才再次查询此结果；
+f.返回IP结果给浏览器；
+g.浏览器根据IP信息，获取页面；
+dns案例:
+我们都知道，dns即采用了tcp协议，又采用了udp协议，什么时候采用tcp协议？什么时候采用udp协议？为什么要这么设计？
+答案：
+DNS主备服务器之间传输数据时使用tcp，而客户端与DNS服务器之间传输数据时用的是udp。
+tcp和udp最大的区别在于tcp需要三次握手来验证数据包的完整性和准确性，udp不需要验证，速度比tcp要快。
+DNS主备数据传输需要保证数据准确性，有必要使用tcp通信，而客户端请求服务端，更需要快，所以用udp。
+
+DNS & BIND
+	DNS: Domain Name Service
+	hosts: 查找键
+	       IP HOSTNAME
+			getipbyhostname
+			gethostnamebyip
+	Domain: 域，名称空间
+		.: 根域
+		com.: 一级域, tld(top level domain)
+		magedu.com.: 二级域，个人或组织可注册使用
+		www.magedu.com.: FQDN--》Full Qualified Domain Name,完整主机名表示主机名+域名，此处magedu.com.是域名，www是主机名
+	注册：
+	查询类型：
+		递归查询：仅发出一次请求，要求对方回复最终结果；
+		迭代查询：对方响应的可能是个参考答案；
+                比如从客户端到本地DNS服务器是属于递归查询，而DNS服务器之间就是的交互查询就是迭代查询。
+查询类型说明：
+（1）递归查询（客户端和/etc/resolv.conf内的DNS服务器的查询类型就是递归）
+     递归查询是一种DNS 服务器的查询模式，在该模式下DNS服务器接收到客户机请求，必须使用一个准确的查询结果回复客户机。
+     如果DNS服务器本地没有存储查询DNS信息，那么该服务器会询问其他服务器，并将返回的查询结果提交给客户机。
+（2）迭代查询（/etc/resolv.conf内的DNS服务器同网络上其他DNS服务器的查询类型就是迭代）
+     DNS服务器会向客户机提供其他能够解析查询请求的DNS服务器地址，当客户机发送查询请求时，DNS服务器并不直接回复查询结果，
+     而是告诉客户机另一台DNS 服务器地址，客户机再向这台DNS 服务器提交请求，依次循环直到返回查询的结果为止。
+	域：domain
+		正向解析：FQDN --> IP
+		反向解析：IP --> FQDN
+                注意：正向解析和反向解析的名称空间，非为同一个空间。也即不是同一棵树，不是同一个解析库
+	区域：zone
+	一级域：
+		组织域：.com, .net, .org, .gov, .mil, .int, .edu, .info, .mobi, .tv
+		国家域：.cn, .tw, .hk,
+		反向域：.in-addr.arpa
+
+        注意：一个ip可以对应多个主机名，一个主机名也可以对应多个ip
+	区域解析数据库：
+		资源记录：resource record(rr)
+		资源记录类型：resource record type
+			SOA: Start Of Authority，起始授权记录；一个区域解析库有且只能一个SOA记录；SOA还必须是第一条资源记录；
+			NS：Name Server，名称服务器，一个区域解析库可以有多个NS记录，有一个为主NS
+			MX：Mail eXchanger，邮件交换器，对应的数字越小优先级越高
+			A: Address，FQDN-->IPv4
+			AAAA: Address, FQDN-->IPv6
+			PTR: Pointer，指针，IP-->FQDN
+			CNAME: Cononical NAME，正式名称，也即别名
+
+	对于客户端来讲，一次查询要经历的完整过程是：client-->/etc/hosts --> dns local cache --> dns server --> 迭代查询
+        如果是自己负责解析的域：直接查询数据库并返回答案
+        如果不是自己负责解析的域：dns local cache-->根DNS
+	/etc/nsswitch.conf文件定义了每一种名称解析需求解析时使用解析方案；对于主机名解析使用了两种方式---看视频
+			hosts: files dns
+                 对于Linux而言：/etc/hosts 
+		 DNS服务响应的结果有两种类型：
+			权威应答
+			非权威应答
+		如果基于名称查询的结果对应的有多条记录，DNS服务器此时会通过“轮流”的方式进行响应；
+	DNS服务器的类型：
+		主DNS服务器：负责某区域解析的服务器；对区域的所有更新都通过此服务器进行；可以提供读，写操作
+		从DNS服务器：负责某区域解析；但不负责更新操作，只从同一个区域的主服务器或其它从服务器同步区域数据文件；只提供读操作
+		DNS缓存服务器：不负责任何区域的解析，仅用于帮指向此DNS服务器客户端作递归；
+
+	DNS服务器的主从协调过程：
+		区域数据文件有版本号(序列号): serial
+		刷新时间(检查周期)：refresh
+		重试时间(重试周期): retry
+		过期时间(失效时长): expire 
+		否定应答的TTL值；
+
+		协调过程：从服务器在间隔达到refresh指定的时长后发起同步请求至主服务器；主服务器响应serial，从服务器与本地的serial进行比较；
+                          如果主服务器serial大于本地，意味主服务器区域数据文件更新了，因此请求同步；
+
+		区域数据传送：
+			完全区域传送：axfr
+			增量区域传送: ixfr
+		notify机制：即使刷新时长未到，主服务为了让从服务器能及时得到最新数据，会触发从服务器发起更新请求；
+		协调：周期性检查 + 通知
+
+	资源记录的定义格式：
+		语法：name	[ttl] 	IN 	rr_type  	value
+		SOA:
+			name: 区域名称
+                        ttl：允许查询者能够保留这笔记录的时间，也就是缓存时间
+			value: 
+				主DNS服务器的FQDN，也可以是当前区域的区域名称；
+				当前区域的管理员邮箱；@用于表示当前区域的区域名字，所以邮箱地址中不能出现@符号，一般使用点号替代；
+				(主从服务器协调属性定义及否定应答的TTL值)：
+			例如：magedu.com. 	60 	IN   	SOA   	magedu.com.  dns.magedu.com. (
+						2014120901---表示serial number  
+						1H----- refresh时间
+						5M------retry时间 
+						7D-----expire时间
+						1D )---否定答案缓存时长
+
+		NS: 一个区域数据文件可以有多个NS记录；
+			name: 当前区域的区域名称，可使用@替换；
+			value：当前区域的dns服务器的FQDN；
+			例如：
+				magedu.com.		IN  	NS  	dns1.magedu.com. 注意：最后有一个点表示根域
+							IN  	NS 	dns2.magedu.com.
+			注意：
+				1、相邻的资源记录name相同时，后面的可省略；
+				2、任何一个value中指定的FQDN，在其域的正向解析文件中应该有A记录；
+		MX：一个区域数据文件可以有多个MX记录；
+			name: 当前区域的区域名称，可使用@表示；
+			value: 邮件服务器的FQDN,value之前需要一个数字表示其优先级(0-99, 数字越小优先级越高)
+			例如：
+				@		IN 		MX  10   mx1.magedu.com.
+						IN   	        MX  20   mx2.magedu.com.
+		A：ipv4地址，应用于正向区域解析
+                AAAA: ipv6地址，应用于正向区域解析
+			name: FQDN，必须要是完整主机名，如www.magedu.com.
+			value: IP
+			例如：
+				www.magedu.com. 	IN  	A 	1.1.1.1
+				www.magedu.com.  	IN   	A       2.2.2.2
+				mx1.magedu.com.  	IN  	A  	1.1.1.1
+				pop3.magedu.com.   	IN 	A 	1.1.1.1
+				magedu.com. 	        IN 	A 	1.1.1.1
+				*.magedu.com.	        IN 	A 	1.1.1.1    泛域名解析
+		PTR: 应用于反向区域解析
+			name: IP地址的逆向格式，并附加in-addr.arpa.后缀
+			value: FQDN
+			例如：
+				6.100.16.172.in-addr.arpa. 	IN  	PTR 	www.magedu.com.
+		CNAME: 这种记录允许您将多个名字映射到同一台计算机，比如你的服务器同时提供WWW和MAIL服务。可以为该计算机设置两个别名（CNAME）：WWW和MAIL。
+			name: 别名FQDN
+			value: 正名FQDN
+			例如：
+				web.magedu.com. 	IN 	CNAME 	www.magedu.com. 表示web.magedu.com.是www.magedu.com.的别名，他们都是同一个IP地址
+
+补充CNAME知识：
+       同样的方法可以用于当您拥有多个域名需要指向同一服务器IP，此时您就可以将一个域名做A记录指向服务器IP，然后将其他的域名做别名(即CNAME)到A记录的域名上；
+       那么当您的服务器IP地址变更时，您就可以不必对一个一个域名做更改指向了，只需要更改A记录的那个域名到服务器新IP上，
+       其他做别名（即CNAME）的那些域名的指向将自动更改到新的IP地址上
+注意：
+    （1）TTL可以全局继承
+    （2）@表示当前区域的区域名称
+    （3）相邻的两条记录其name相同时，后面的可以省略
+    （4）对于正向区域来说，MX和NS等类型记录的是FQDN，此FQDN必须要对应一个A记录--非常重要
+
+	序列号
+		刷新时间
+		重试时间
+		过期时间
+	godaddy.com, net.cn
+	域名注册代理商：会在.com的区域解析库添加一个记录信息，指向的解析服务器为域名注册代理从自己公共解析服务器挑出两台；magedu.com
+
+18-3
+BIND安装配置及应用
+	BIND: Berkeley Internet Name Domain, ISC.org
+	dns: 
+            53/udp,用于解析，也就是客户端请求时实现快速响应客户端
+            53/tcp，用于主从之间实现数据的可靠传输
+	程序包：bind，bind实现了dns协议
+	服务器进程名：named
+        bind程序包：        
+               bind-libs：被bind和bind-utils包中的程序共同用到的库文件                                                           
+               bind-utils：bind客户端程序集合，例如dig, host, nslookup
+               bind：提供dns server程序以及常用的测试程序
+               bind-chroot: 选装，让named程序运行于jail（监狱）模式，即禁锢/var/named/chroot/
+	bind:
+		服务脚本：/etc/rc.d/init.d/named
+		主配置文件：/etc/named.conf, 该主配置文件可包含进其他配置文件，比如/etc/named.rfc1912.zones和/etc/named.iscdlv.key   rfc表示request file comment
+		区域解析库文件：/var/named/目录下面，一般命名为zone_name.zone
+                注意：（1）一台DNS服务器可同时为多个区域提供解析服务
+                      （2）必须要有根区域解析库文件，即/var/named/named.ca
+                      （3）还应该有两个区域解析库文件，即loalhost和127.0.0.1的正反向解析库
+                           正向：/var/named/named.localhost，localhost--> 127.0.0.1的解析实现
+                           反向：/var/named/named.loopback，127.0.0.1-->localhost的解析实现
+
+	DNS服务器类型：主、从、缓存
+        bind程序安装完成后，默认可做为缓存名称服务器使用，如果没有专门负责解析的区域，可直接启动
+	缓存名称服务器：
+		1、根区域解析库文件: named.ca
+		2、localhost <--> 127.0.0.1
+			named.localhost
+			named.loopback
+	配置文件：/etc/named.conf
+		options {}：全局配置段，定义named进程的工作特性
+		logging {}：日志配置段
+		zone {}：区域配置段，定义本机负责解析的区域；zone可以有多个；
+		注释：
+			//: 单行注释 
+			/* ... */: 多行注释
+	配置dns服务器成为某区域的主服务器,假设区域名称为magedu.com.
+		1、在主配置文件中定义zone
+			zone "ZONE_NAME" IN {
+				type master|slave|forward;
+				file "/path/to/zone_file.zone";
+			};
+                              ZONE_NAME: 
+					正向区域：就写成magedu.com.
+					反向区域：逆向网络地址.in-addr.arpa. 比如192.139.168.192.in-addr.arpa.
+		2、定义zone用到区域数据库文件，包含资源记录，也可包含宏定义；$TTL，$ORIGIN
+		3、反向区域名称有特定后缀：逆向网络地址.in-addr.arpa.
+		4、反向区域的区域解析库文件包含SOA、NS及PTR记录；不应该包含MX及A记录；
+                5、检测配置文件语法错误 named-checkconf [/etc/named.conf]
+	客户端测试工具：dig, host, nslookup
+		dig: 用于测试dns系统，因此不查询/etc/hosts文件
+			用法：dig [-t type] [-x IP] name @SERVER [queryoptions]
+			[-t type]：资源记录类型，SOA,NS,A,PTR,MX,CNAME
+			query options:
+				+[no]trace   跟踪解析过程
+				+[no]recurse 进行递归解析
+
+dig使用案例
+[root@localhost ~]# dig -t A www.baidu.com 正向解析
+; <<>> DiG 9.8.2rc1-RedHat-9.8.2-0.62.rc1.el6_9.4 <<>> -t A www.baidu.com
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 5333
+;; flags: qr rd ra; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;www.baidu.com.			IN	A
+
+;; ANSWER SECTION:
+www.baidu.com.		5	IN	CNAME	www.a.shifen.com.
+www.a.shifen.com.	5	IN	A	14.215.177.38
+www.a.shifen.com.	5	IN	A	14.215.177.39
+
+;; Query time: 44 msec
+;; SERVER: 192.168.139.2#53(192.168.139.2)
+;; WHEN: Tue Sep 19 04:14:30 2017
+;; MSG SIZE  rcvd: 90
+[root@localhost ~]# dig -x 14.215.177.38   反向解析，注意是小写x
+Invalid option: -X
+Usage:  dig [@global-server] [domain] [q-type] [q-class] {q-opt}
+            {global-d-opt} host [@local-server] {local-d-opt}
+            [ host [@local-server] {local-d-opt} [...]]
+
+Use "dig -h" (or "dig -h | more") for complete list of options
+[root@localhost ~]# dig -x  14.215.177.38
+
+; <<>> DiG 9.8.2rc1-RedHat-9.8.2-0.62.rc1.el6_9.4 <<>> -x 14.215.177.38
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN, id: 40723
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;38.177.215.14.in-addr.arpa.	IN	PTR
+
+;; AUTHORITY SECTION:
+215.14.in-addr.arpa.	5	IN	SOA	soa. dns.guangzhou.gd.cn. 2016012122 10800 3600 604800 86400
+
+;; Query time: 9 msec
+;; SERVER: 192.168.139.2#53(192.168.139.2)
+;; WHEN: Tue Sep 19 04:16:24 2017
+;; MSG SIZE  rcvd: 102 
+ 
+
+host用法：host [-t type] name [SERVER]
+host使用案例：
+[root@localhost ~]# host  -t A www.baidu.com   如果你想解析的是A记录，后面必须更FQDN
+www.baidu.com is an alias for www.a.shifen.com.
+www.a.shifen.com has address 14.215.177.39
+www.a.shifen.com has address 14.215.177.38
+[root@localhost ~]# host  -t NS   baidu.com    如果你想解析的是NS记录，后面给的是域名
+baidu.com name server ns7.baidu.com.
+baidu.com name server ns4.baidu.com.
+baidu.com name server dns.baidu.com.
+baidu.com name server ns2.baidu.com.
+baidu.com name server ns3.baidu.com.
+
+		nslookup：
+			 nslookup [-option] [name | -] [server]
+			 nslookup>
+			 	server IP: 设定查询时使用的DNS服务器
+			 	set q=type: 设定查询类型
+			 	name: 指定要查询的名称
+                                exit
+nslookup使用案例
+[root@localhost ~]# nslookup 输入命令后就进入了交互模式
+> server 192.168.139.2
+Default server: 192.168.139.2
+Address: 192.168.139.2#53
+> set q=A
+> www.baidu.com 
+Server:		192.168.139.2
+Address:	192.168.139.2#53
+Non-authoritative answer:
+www.baidu.com	canonical name = www.a.shifen.com.
+Name:	www.a.shifen.com
+Address: 14.215.177.39
+Name:	www.a.shifen.com
+Address: 14.215.177.38
+> exit
+
+rndc: remote name domain controller，即named服务控制命令，监听在953/tcp，但是默认监听地址为127.0.0.1，因此仅允许本地使
+rndc <--socket--> named
+		随机数生成器：
+			/dev/random：从熵池中取随机数；如果熵池中的随机数被用尽，则阻塞相关的进程；
+                	/dev/urandom：从熵池中取随机数；如果熵池中的随机数被用尽，则用软件生成伪随机数；
+		rndc [-c config-file] [-k key-file] [-s server] [-p port] {command}
+                     command有如下选择：
+			reload: 重新装载配置文件及区域解析库文件；
+			reload zone_name: 仅重新装载指定的区域的解析库文件；
+			retransfer zone: 不检查serial number而直接重新传送一个zone；
+			notify zone: 
+			reconfig：仅重新装载配置文件及新增的区域；
+			querylog: 启用或关闭查询日志
+			trace [level]：提升调试级别；或指定调试级别；
+			flush: 清空服务器缓存；
+                        status
+                        stop：可停止DNS服务
+                        stats：统计
+
+
+18-4	
+回顾：
+		关闭dnssec；
+		    根区域：
+			zone "." IN {
+				type hint; hint就表示记录根域
+				file "named.ca";
+			};
+
+			zone "localhost" IN {
+				type master;
+				file "named.localhost";
+			};
+
+			zone "0.0.127.in-addr.arpa." IN {
+				type master;
+				file "named.loopback";
+			};
+
+			zone "localhost.localdomain" IN {
+
+			}
+配置DNS主从服务的具体操作步骤：
+		(1)区域的主DNS服务器：
+                        vim /etc/named.rfc1912.zones
+			zone "ZONE_NAME" IN {
+				type master;
+				file "ZONEFILE";
+                                allow-transfer { slave-ip;}
+			}
+master节点操作:确保区域数据文件中为每一个从服务器设置有NS记录，并且在区域文件中需要为每个从服务器的NS记录配置一个A记录，A记录对应的ip地址是从服务器的真实ip地址
+		 区域的从DNS服务器：
+                        vim /etc/named.rfc1912.zones
+			zone "ZONE_NAME" IN {
+				type slave;
+				file "slaves/ZONEFILE";
+				masters { MASTER_IP; };
+				allow-transfer { none; };
+			}
+
+             （2）重载配置文件
+                rndc reload 或者 service named reload 
+注意：1、从服务器是区域级别的概念
+      2、各主从节点时间保持同步：可使用ntp协议；
+      3、bind程序版本差异：尽可能保持版本相同；不得已时，主低从高是OK的；
+18-4
+bind的安全配置：
+	acl: 访问控制列表，把一个或多个ip地址合并成一个命令的集合，随后通过此名称即可对此集合内的所有主机实现统一调用。acl必须先定义才能调用
+			acl acl_name {
+				IP;
+				NETWORK/PRILEN;
+			};
+               比如 
+                        acl mynet {
+				192.168.139.0/24;
+				127.0.0.0/8;
+			};
+		bind内置的acl
+			none:  没一个主机
+			any: 任意主机
+			local: 仅本机
+			localnet: 仅本地网络
+		allow-query {};允许查询的主机，白名单
+		allow-transfer {};允许向哪些主机做区域传送，默认为向所有主机；为了安全应该配置仅允许向从服务器做区域传送
+		allow-recuersion {};允许哪些主机可以向当前服务器发起递归查询
+		allow-update {};DDNS，允许动态更新区域数据库文件内容
+
+	子域授权：
+			在父域服务器上进行授权,也就是增加对应的NS和A记录
+			ops.magedu.com.     IN 	NS  	ns1.ops.magedu.com.
+					    IN  NS 	ns2.ops.magedu.com.  有两条记录的原因一般是为了给子域服务器做主从
+			ns1.ops.magedu.com. IN  A 	2.2.2.2
+			ns2.ops.magedu.com. IN  A 	3.3.3.3
+        转发：
+	定义区域转发的注意事项：
+                  （1）在/etc/named.conf中注释掉allow-query {locahost;}，如果不注释掉可以修改为allow-query {any;}
+                   (2) 被转发的服务器必须允许为当前服务器做递归操作
+
+		转发范围：
+			全部转发：凡是本地没有通过zone定义的区域查询请求，全部转发给某转发器
+                                [root@localhost named]# vim /etc/named.conf
+				options {
+					...
+					forward first|only;
+					forwarders { IP; };
+					...
+				};
+
+			某区域转发：只针对特定的区域进行转发
+                                [root@localhost named]# vim /etc/named.rfc1912.zones
+				zone "ZONE_NAME" {
+					type forward;
+					forward first|only;
+					forwarders { IP; };
+				};
+                       first：针对ZONE_NAME区域的解析，首先转发给转发器forwarders指定的IP，如果转发器不响应，客户端自行向根域迭代查询
+                       only： 只转发
+
+	view：智能解析，即实现针对同一个域名的解析，来自不同客户端的请求，可以解析出不同的ip地址
+		view VIEW_NAME {
+			match-clients { ACL_NAME; };
+			allow-recursion { IP; };
+			zone DEFINATION;
+		};
+        view的具体使用案例
+                [root@localhost named]# vim /etc/named.rfc1912.zones
+                view internal {
+                     match-clients {192.168.139.0/24;};
+                     zone "magedu.com" IN {
+                           type master;
+                           file "magedu.com/internal.zone";
+                     };
+                 };
+                 view external {
+                     match-clients {any;};
+                     zone "magedu.com" IN {
+                           type master;
+                           file "magedu.com/external.zone";
+                     };
+                 };
+注意：1、一旦使用view，所有的zone都必须定义在view中；只有允许给其递归的客户端所在的view才有必要定义根区域等；
+      2、客户端请求到达时，其匹配view是自上而下匹配match-clients中定义的地址范围；第一次被匹配到的为最终生效；
+博客作业：
+		1）bind的安装配置+配置正向区域；
+                2）配置反向区域
+		3）主从复制；
+		4）子域授权和转发；
+		5) view，即智能解析
+1)bind的安装配置+配置正向区域
+[root@localhost ~]# yum install bind -y
+[root@localhost ~]# ll /var/named/
+total 28
+drwxrwx--- 2 named named 4096 Jul  5 17:55 data
+drwxrwx--- 2 named named 4096 Jul  5 17:55 dynamic
+-rw-r----- 1 root  named 3289 Apr 11 23:01 named.ca
+-rw-r----- 1 root  named  152 Dec 15  2009 named.empty
+-rw-r----- 1 root  named  152 Jun 21  2007 named.localhost
+-rw-r----- 1 root  named  168 Dec 15  2009 named.loopback
+drwxrwx--- 2 named named 4096 Jul  5 17:55 slaves
+修改主配置文件
+[root@localhost ~]# vim /etc/named.conf
+options {
+        listen-on port 53 { 127.0.0.1;192.168.139.192; }; 配置监听一个可以与外部通信的地址
+        listen-on-v6 port 53 { ::1; };
+        directory       "/var/named";
+        dump-file       "/var/named/data/cache_dump.db";
+        statistics-file "/var/named/data/named_stats.txt";
+        memstatistics-file "/var/named/data/named_mem_stats.txt";
+        allow-query     { any; };  允许所有主机查询
+        recursion yes;             本句代码可以修改为allow-recuersion {ip;};
+        dnssec-enable no;          关闭dnssec相关配置
+        dnssec-validation no;
+        /* Path to ISC DLV key */
+        bindkeys-file "/etc/named.iscdlv.key";
+        managed-keys-directory "/var/named/dynamic";
+};
+include "/etc/named.rfc1912.zones"; 因为有这句话，所以定义区域可以修改/etc/named.rfc1912.zones
+
+在配置文件中定义区域chenhao.com.
+[root@localhost named]# vim /etc/named.rfc1912.zones
+zone "chenhao.com." IN {
+        type master;
+        file "chenhao.com.zone";
+};
+
+定义区域数据库文件
+[root@localhost named]# vim /var/named/chenhao.com.zone
+$TTL 3600 单位是s，也就是1H，实现了全局继承
+chenhao.com.           IN      SOA     dns1.chenhao.com.  admin.chenhao.com. (   admin.chenhao.com.实际上是邮箱地址，即admin@chenhao.com.
+                                                2017091801
+                                                1H
+                                                5M
+                                                7D
+                                                1D )
+chenhao.com.            IN      NS              dns1.chenhao.com.
+chenhao.com.            IN      MX  10          mx1.chenhao.com.
+dns1.chenhao.com.       IN      A               192.168.139.192
+mx1.chenhao.com.        IN      A               192.168.139.192   在正向区域中，主要记录是A记录
+www.chenhao.com.        IN      A               192.168.139.100   因为是测试用，所以这里面的地址不需要都存在，可以随便写，但是不能写超过255的
+bbs.chenhao.com.        IN      A               192.168.139.50
+
+配置文件语法检测
+[root@localhost named]# named-checkconf 
+[root@localhost named]# named-checkzone chenhao.com /var/named/chenhao.com.zone 
+/var/named/chenhao.com.zone:8: using RFC1035 TTL semantics
+zone chenhao.com/IN: loaded serial 2017091801
+OK
+
+重启服务
+[root@localhost named]# service named start
+ 
+客户端工具测试
+[root@localhost named]# dig -t A  www.chenhao.com @192.168.139.192  因为没有修改/etc/resolv.conf中的nameserver，所以需要@指定DNS服务器
+; <<>> DiG 9.8.2rc1-RedHat-9.8.2-0.62.rc1.el6_9.4 <<>> -t A www.chenhao.com @192.168.139.192
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 38262
+;; flags: qr aa rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 1, ADDITIONAL: 1
+
+;; QUESTION SECTION:
+;www.chenhao.com.		IN	A
+
+;; ANSWER SECTION:
+www.chenhao.com.	60	IN	A	192.168.139.100
+
+;; AUTHORITY SECTION:
+chenhao.com.		60	IN	NS	dns1.chenhao.com.
+
+;; ADDITIONAL SECTION:
+dns1.chenhao.com.	60	IN	A	192.168.139.192
+
+;; Query time: 0 msec
+;; SERVER: 192.168.139.192#53(192.168.139.192)
+;; WHEN: Tue Sep 19 06:53:13 2017
+;; MSG SIZE  rcvd: 84
+
+
+2）配置反向区域
+在配置文件中定义区域chenhao.com.
+[root@localhost named]# vim /etc/named.rfc1912.zones
+zone "16.100.172.in-addr.arpa" IN {
+        type master;
+        file "172.100.16.zone";
+};
+
+定义区域数据库文件
+[root@localhost named]# vim /var/named/172.100.16.zone
+$TTL 3600
+16.100.172.in-addr.arpa.      IN        SOA     dns1.chenhao.com.  admin.chenhao.com. (
+                                                2017091801
+                                                1H
+                                                5M
+                                                7D
+                                                1D )
+16.100.172.in-addr.arpa.      IN      NS              dns1.chenhao.com.
+12.16.100.172.in-addr.arpa.   IN      PTR             dns1.chenhao.com. 反向区域里面的主要记录是PTR记录，且不需要MX记录
+13.16.100.172.in-addr.arpa.   IN      PTR             web.chenhao.com.
+14.16.100.172.in-addr.arpa.   IN      PTR             bbs.chenhao.com.
+
+chown named:named /var/named/172.100.16.zone
+chmod 600 /var/named/172.100.16.zone 必须要执行这两条命令，否则解析不成功
+
+重启服务
+[root@localhost named]# service named restart
+客户端测试
+[root@localhost named]# dig -x 172.100.16.12 @192.168.139.192
+
+3）带有访问控制的主从复制配置步骤
+master节点操作：
+[root@localhost ~]# vim /etc/named.conf
+acl slave {  acl必须定义在最前面，也就是在options的前面
+               192.168.139.0/24;
+               127.0.0.1;
+};
+options {
+        ..........
+        ..........
+};
+      
+在配置文件中定义区域chenhao.com.
+[root@localhost named]# vim /etc/named.rfc1912.zones
+zone "chenhao.com." IN {
+        type master;
+        file "chenhao.com.zone";
+        allow-transfer { slave;}; 
+};
+[root@localhost named]# vim /var/named/chenhao.com.zone
+chenhao.com.    60      IN      SOA     dns1.chenhao.com.  admin.chenhao.com. (
+                                                2017091801  主服务器的区域数据库每一次改变，都要修改serial number
+                                                1H
+                                                5M
+                                                7D
+                                                1D )
+chenhao.com.            IN      NS              dns1.chenhao.com.
+chenhao.com.            IN      NS              dns2.chenhao.com. 
+chenhao.com.            IN      MX  10          mx1.chenhao.com.
+dns1.chenhao.com.       IN      A               192.168.139.192
+dns2.chenhao.com.       IN      A               192.168.139.171
+mx1.chenhao.com.        IN      A               192.168.139.192
+www.chenhao.com.        IN      A               192.168.139.100
+bbs.chenhao.com.        IN      A               192.168.139.50
+
+chown named:named /var/named/chenhao.com.zone
+chmod 600 /var/named/chenhao.com.zone
+语法检测
+[root@localhost named]# named-checkconf 
+[root@localhost named]# named-checkzone chenhao.com /var/named/chenhao.com.zone 
+/var/named/chenhao.com.zone:8: using RFC1035 TTL semantics
+zone chenhao.com/IN: loaded serial 2017091801
+OK
+重启服务
+[root@localhost named]# service named start 
+
+slave节点操作：
+[root@localhost ~]# vim /etc/named.rfc1912.zones
+zone "chenhao.com" IN {
+        type slave;
+        file "slaves/chenhao.com";
+        masters { 192.168.139.192; };
+};
+语法检测
+[root@localhost named]# named-checkconf 
+重启服务
+[root@localhost named]# service named start 
+客户端测试
+[root@localhost ~]# dig -t NS chenhao.com @192.168.139.171    192.168.139.171是slave节点的ip地址
+; <<>> DiG 9.8.2rc1-RedHat-9.8.2-0.62.rc1.el6_9.4 <<>> -t NS chenhao.com @192.168.139.171
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 55902
+;; flags: qr aa rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 2
+
+;; QUESTION SECTION:
+;chenhao.com.			IN	NS
+
+;; ANSWER SECTION:
+chenhao.com.		60	IN	NS	dns2.chenhao.com.
+chenhao.com.		60	IN	NS	dns1.chenhao.com.
+
+;; ADDITIONAL SECTION:
+dns1.chenhao.com.	60	IN	A	192.168.139.192
+dns2.chenhao.com.	60	IN	A	192.168.139.171
+
+;; Query time: 0 msec
+;; SERVER: 192.168.139.171#53(192.168.139.171)
+;; WHEN: Wed Sep 20 04:42:34 2017
+;; MSG SIZE  rcvd: 99
+补充说明：
+  （1）master节点，必须确保区域数据文件中为每一个从服务器设置有NS记录，并且在区域文件中需要为每个从服务器的NS记录配置一个A记录，A记录对应的ip地址是从服务器的真实ip地址
+  （2）如果主服务的区域数据库文件发生了变化，只需要在master节点执行rndc reload即可，因为此时mster节点会主动通知slave节点数据更新了，然后slave节点区域数据也会改变
+  （3）主服务器的区域数据库每一次改变，都要修改serial number，否则从服务器发现serial number没有改变，从服务器不会更新数据
+  （4）如果主从同步失败，可以在从服务器上手动执行dig -t axfr  chenhao.com  @192.168.139.192 ，查看是否成功
+
+4）子域授权
+   在父域的区域数据库文件里面给子域进行授权，也就是增加对应的NS和A记录
+[root@localhost named]# vim /var/named/chenhao.com.zone
+$TTL 3600 单位是s，也就是1H，实现了全局继承
+chenhao.com.           IN      SOA     dns1.chenhao.com.  admin.chenhao.com. (
+                                                2017091801
+                                                1H
+                                                5M
+                                                7D
+                                                1D )
+chenhao.com.            IN      NS              dns1.chenhao.com.
+chenhao.com             IN      NS              dns1.chenhao.com.
+chenhao.com.            IN      MX  10          mx1.chenhao.com.
+dns1.chenhao.com.       IN      A               192.168.139.192
+dns1.chenhao.com.       IN      A               192.168.139.100 
+   然后在对应的192.168.139.100节点上正常安装bind，然后修改配置文件和定义区域文件即可
+
+4.1）区域转发
+     假设针对父域的查询，我们让告诉本机转发指定的主机
+[root@localhost named]# vim /etc/named.rfc1912.zones
+zone "chenhao.com" {
+      type forward;
+      forward first;
+      forwarders { 192.168.139.192; }; 该地址是对应父域的DNS服务器
+};
+其他不做任何改变
+
+额外补充知识
+编译安装bind9:
+		前提：准备编译环境
+			"Development Tools", "Server Platform Development"
+		获取源代码，解压源代码;
+			INSTALL, README
+			./configure 
+			make
+			make
+		1、编译安装bind9.10：（确保rpm包格式的bind未安装）
+			# groupadd -r -g 53 named
+			# useradd -r -g named -u 53 named
+			# ./configure --prefix=/usr/local/bind9 --sysconfdir=/etc/named/ --disable-ipv6 --disable-chroot --enable-threads
+			# make && make install
+			后续的步骤：
+			1、导出程序路径至PATH中；
+			2、导出帮助文件；
+			3、库文件和头文件；
+		2、提供基本的区域解析库
+			# mkdir /var/named
+			# cd /var/named
+			2.1 named.ca
+				# dig -t NS . @SERVER_IP > named.ca
+			2.2 named.localhost
+				$TTL 86400
+				@	IN	SOA	localhost.	nsadmin.localhost. (
+						2014121101
+						12H
+						1H
+						15D
+						1D )
+					IN	NS	localhost.
+					IN	A	127.0.0.1
+			2.3 named.loopback
+				$TTL 86400
+				@	IN	SOA	localhost.	nsadmin.localhost. (
+						2014121101
+						12H
+						1H
+						15D
+						1D )
+					IN	NS	localhost.
+				1	IN	PTR	localhost.
+
+		3、提供配置文件
+			3.1 rndc.conf
+				# rndc-confgen -r /dev/urandom > /etc/named/rndc.conf
+			3.2 named.conf
+				options {
+					directory "/var/named";
+				};
+
+				zone "." IN {
+					type hint;
+					file "named.ca";
+				};
+
+				zone "localhost" IN {
+					type master;
+					file "named.localhost";
+					allow-update { none; };
+				};
+
+				zone "0.0.127.in-addr.arpa" IN {
+					type master;
+					file "named.loopback";
+					allow-update { none; };
+				};
+
+		4、测试启动
+			# named -u named -g [-c /path/to/config_file]
+		5、提供服务脚本
+	dns服务压力测试：
+		benchmark：
+			queryperf
+			dnstop：第三方程序工具
+			rpmfind.net, pkgs.org  
+
+
+	练习：主机名称解析服务器配置，要求：
+		1)建立DNS服务器，负责解析的域为stuX.com；
+		2)要求将MX记录指向mail.stuX.com，且对应A记录为本机IP；
+		3)要求将NS记录指向ns.stuX.com，且对应A记录为本机IP；
+		4)建立www1,www2,proxy等A记录指向本机IP；为mail主机建立别名记录pop3和imaps；
+		5)为所有A记录建立PTR记录；
+		6)stuX.com区域仅允许172.16.0.0/16网络中的主机做区域传送；对应的反向区域不允许任何主机做区域传送；
+		7)为正向区域建立子域委派，两个子域为subdomain1.stuX.com和subdomain2.stuX.com，子域服务器地址为172.16.x.5；（仅给出实现授权的记录即可）
+		8)将example.com域的所有请求转发至172.16.0.1进行解析；	
+
+回顾：子域授权、转发、view，编辑安装named
+      子域授权：正向区域
+		ops.magedu.com. 	IN 		NS 	ns1.ops.magedu.com.
+		ops.magedu.com. 	IN 		NS 	ns2.ops.magedu.com.
+		ns1.ops.magedu.com.     IN 		A  	1.1.1.1
+		ns2.ops.magedu.com.     IN 		A  	1.1.1.2
+
+	转发：
+		options {
+			...
+			forward first|only;
+			forwarders { IP; };
+		};
+
+		zone "magedu.com" IN 	{
+			type forward;
+			forward first|only;
+			forwarders { IP; };
+		};
+
+	view:
+		view VIEW_NAME {
+			match-clients { IP; };
+			zone "" IN {
+
+			};
+
+		}
+
+		view VEIW_NAME_2 {
+			match-clients { IP; };
+		}
+
+	编译安装：bind --prefix= --sysconfdir=
+
+定制Linux内核：
+	内核功能：进程管理、内存管理、驱动程序、网络管理、安全功能、文件系统
+	编译内核：
+		配置：
+			make menuconfig
+			make xconfig
+			make gconfig
+			make allnoconfig
+			make config
+		编译安装：
+			make
+			make modules_install
+			make install
+		        make help
+
+	udev: 
+	busybox
+博客：定制Linux内核，编译busybox支持虚拟终端；
+回顾：kernel定制，busybox rootfs
