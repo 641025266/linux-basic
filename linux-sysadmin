@@ -1,0 +1,3895 @@
+﻿
+7-1
+Linux系统管理	
+   磁盘分区及文件系统管理
+   RAID
+   LVM	
+   网络属性管理	
+   程序包管理
+   sed and awk
+   进程查看和管理
+   内核管理(编译和安装）
+   系统启动流程
+   定制、编译内核、busybox
+   系统安装：kickstart，dhcp, pxe
+   shell脚本编程
+	
+Linux任务计划、周期性任务执行
+
+	
+未来的某时间点执行一次某任务：at和batch
+	
+周期性运行某任务：crontab
+		
+执行结果：会通过邮件发送给用户 
+		
+		
+～]# netstat  -tnlp
+		 
+~ ]# ss -tnl
+		 
+	
+本地电子邮件服务：
+
+smtp：simple mail transmission protocol
+		
+pop3：Post Office Procotol
+		
+imap4：Internet Mail Access Procotol
+		
+		
+mail命令：
+mailx - send and receive Internet mail
+		
+MUA：Mail User Agent, 用户收发邮件的工具程序；
+				
+				
+mailx  [-s 'SUBJECT']  username[@hostname]
+					
+邮件正文的生成：
+						
+   (1) 交互式输入；. 单独成行可以表示正文结束；Ctrl+d提交亦可；
+					
+   (2) 通过输入重定向；
+						
+   (3) 通过管道；
+
+				
+at命令：
+		
+at  [OPTION]... TIME
+		
+			
+    TIME：
+HH:MM [YYYY-mm-dd]
+			 
+          noon，midnight, teatime
+，tomorrow
+，now+#
+					
+UNIT：minutes, hours, days, OR weeks
+				
+			
+at的作业有队列，用单个字母表示，默认都使用a队列；
+		
+			
+常用选项：
+			
+        -l：查看作业队列，相当于atq
+				
+        -f /PATH/FROM/SOMEFILE：从指定文件中读取作业任务，而不用再交互式输入；
+				        
+        -d：删除指定的作业，相当于atrm；
+			
+        -c：查看指定作业的具体内容；
+				
+        -q QUEUE：指明队列；
+				
+			
+注意：作业执行结果是以邮件发送给提交作业的用户；
+
+		
+	
+batch命令：
+		
+  batch会让系统自行选择在系统资源较空闲的时间去执行指定的任务；	
+周期性任务计划：cron		
+   服务程序：
+   cronie主程序包，提供了crond守护进程及相关辅助工具；		
+   确保crond守护进程(daemon)处于运行状态：
+   CentOS 7：
+      systemctl  status  crond.service
+      Active: active (running) ... ...
+   CentOS 6：
+      service crond  status				
+      ... is running.
+向crond提交
+作业的方式不同于at，它需要使用专用的配置文件，此文件有固定格式，不建议使用文本编辑器直接编辑此文件；要使用crontab命令；
+cron任务分为两类：			
+     系统cron任务：
+         主要用于实现系统自身的维护；			
+         手动编辑：/etc/crontab文件
+     用户cron任务：	
+         命令：crontab命令	
+系统cron的配置文件/etc/crontab
+的内容如下：			
+        SHELL=/bin/bash	
+        PATH=/sbin:/bin:/usr/sbin:/usr/bin		
+        MAILTO=root
+# For details see man 4 crontabs
+# Example of job definition:		
+# .---------------- minute (0 - 59)	
+# |  .------------- hour (0 - 23)
+# |  |  .---------- day of month (1 - 31)
+# |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+# |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+# |  |  |  |  |
+# *  *  *  *  * user-name  command to be executed				
+注意：
+ (1) 每一行定义一个周期性任务，共7个字段；				
+       *  *  *  *  * : 定义周期性时间
+       user-name : 运行任务的用户身份	注意用户cron没有user-name	
+       command to be executed：任务
+  (2) 此处的环境变量不同于用户登录后获得的环境，因此建议命令使用绝对路径，或者自定义PATH环境变量，包括脚本里面的路径也要使用绝对路径
+  (3) 执行结果邮件发送给MAILTO指定的用户
+用户cron的配置文件/var/spool/cron/USERNAME
+的内容如下：				
+  SHELL=/bin/bash				  
+  PATH=/sbin:/bin:/usr/sbin:/usr/bin		
+  MAILTO=root
+# For details see man 4 crontabs	
+# Example of job definition:
+# .---------------- minute (0 - 59)
+# |  .------------- hour (0 - 23)
+# |  |  .---------- day of month (1 - 31)
+# |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+# |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat			
+# |  |  |  |  |
+# *  *  *  *  *   command to be executed		
+注意：	
+(1) 每行定义一个cron任务，共6个字段；
+(2) 此处的环境变量不同于用户登录后获得的环境，因此，建议命令使用绝对路径，或者自定义PATH环境变量；
+(3) 邮件发送给当前用户；		
+时间表示法：			
+  (1) 特定值；给定时间点有效取值范围内的值；
+      注意：day of week和day of month一般不同时使用；			
+  (2) * 给定时间点上有效取值范围内的所有值；表“每..”
+  (3) 离散取值：在时间点上使用逗号分隔的多个值； #,#,#				
+  (4) 连续取值：在时间点上使用-连接开头和结束#-#
+  (5) 在指定时间点上，定义步长，/#：#即步长；			
+注意：						
+ (1) 指定的时间点不能被步长整除时，其意义将不复存在；
+ (2) 最小时间单位为“分钟”，想完成“秒”级任务，得需要额外借助于其它机制；
+     定义成每分钟任务：而在利用脚本实现在每分钟之内，循环执行多次；							
+示例：
+ (1) 3 * * * *：每小时执行一次；每小时的第3分钟；				
+ (2) 3 4 * * 5：每周执行一次；每周5的4点3分；
+ (3) 5 6 7 * *：每月执行一次；每月的7号的6点5分；
+ (4) 7 8 9 10 *：每年执行一次；每年的10月9号8点7分；
+ (5) 9 8 * * 3,7：每周三和周日；
+ (6) 0 8,20 * * 3,7：
+ (7) 0 9-18 * * 1-5：		
+ (8) */5 * * * *：每5分钟执行一次某任务；		
+ (9) */7		
+crontab命令：			
+  crontab [-u user] [-l | -r | -e] [-i] 				
+          -e：编辑任务；
+          -l：列出所有任务；	
+          -r：移除所有任务；即删除/var/spool/cron/USERNAME文件；		
+          -i：在使用-r选项移除所有任务时提示用户确认；
+          -u user：root用户可为指定用户管理cron任务；					
+注意：运行结果以邮件通知给当前用户；如果拒绝接收邮件：
+(1) COMMAND > /dev/null
+(2) COMMAND &> /dev/null
+注意：定义COMMAND时，如果命令需要用到%，需要对其转义；但放置于单引号中的%不用转义亦可；
+思考：某任务在指定的时间因关机未能执行，下次开机会不会自动执行？
+不会！
+如果期望某时间因故未能按时执行，下次开机后无论是否到了相应时间点都要执行一次，可使用anacron实现			
+课外作业：anacron及其应用；
+补充说明：
+如果需要重写所有crontab规则，执行crontab [-u user] file即可
+]#crontab -l > /tmp/crontab1  先把规则导出来
+]#crontab /tmp/crontab1       从文件中导入所有规则
+
+练习：		
+ 1、每12小时备份一次/etc目录至/backups目录中，保存文件 名称格式为“etc-yyyy-mm-dd-hh.tar.xz”
+     * */12 * * *  /bin/tar  -Jcf  /backups/etc-$(date +%Y-%m-%d-%H).tar.xz  /etc	
+ 2、每周2、4、7备份/var/log/secure文件至/logs目录中，文件名格式为“secure-yyyymmdd”；
+     * * * * 2,4,7  /bin/cp /var/log/secure  /logs/secure-$(date +%y%m%d)		
+ 3、每两小时取出当前系统/proc/meminfo文件中以S或M开头的行信息追加至/tmp/meminfo.txt文件中；
+     * */2 * * *   /bin/grep ^[MS] /proc/meminfo >>/tmp/meminfo.txt 
+补充说明:
+     如果任务需要多条命令才能完成，可以先写成一个脚本，在周期的执行该脚本即可
+     可以将不想执行crontab的那个用户写入/etc/cront.deny当中，一个账号一行
+     如果你的脚本里面含有相对路径时，务必要先执行cd命令到脚本所在路径，否则脚本执行失败。所以最好脚本里面的路径也是绝对路径---非常重要
+
+
+9-3		
+
+
+Linux程序包管理
+	
+	
+概述
+		
+  API：Application Program Interface
+		
+  ABI：Application Binary Interface
+			
+  Unix-like, 
+ELF
+			
+  Windows
+，exe, msi
+					
+			
+库级别的虚拟化：
+	  
+  Linux: WinE
+				
+  Windows: Cywin
+				
+		
+系统级开发：
+			
+  C/C++：httpd, vsftpd, nginx
+，go
+		
+应用级开发：
+	
+  java/Python/perl/ruby/php：
+				
+  java: hadoop,  hbase,   (jvm)
+				
+  Python：openstack, (pvm)
+	
+  perl: (perl)
+				
+  ruby: (ruby)
+				
+  php: (php)
+				
+		
+C/C++程序格式：
+			
+       源代码：文本格式的程序代码；
+				
+       编译开发环境：编译器、头文件、开发库
+			
+       二进制格式：文本格式的程序代码 --> 编译器 --> 二进制格式（二进制程序、库文件、配置文件、帮助文件）
+		
+java/python程序格式：
+			
+       源代码：编译成能够在其虚拟机(jvm/pvm)运行的格式；
+				
+       开发环境：编译器、开发库
+			
+二进制
+			
+		
+项目构建工具：
+			
+c/c++: make
+			
+java: maven
+			
+	
+程序包管理器：
+		
+   源代码  --> 目标二进制格式（二进制程序、库文件、配置文件、帮助文件） --> 组织成为一个或有限几个“包”文件；
+			
+安装、升级、卸载、查询、校验
+			
+	
+程序包管理器：
+			
+  debian：dpt, dpkg, ".deb"
+			
+  redhat：redhat package manager, rpm, ".rpm"；		
+  S.u.S.E：rpm, ".rpm",
+			
+			
+  Gentoo：ports
+			
+ArchLinux：
+			
+	  
+  源代码：
+  name-VERSION.tar.gz
+			
+  VERSION：major.minor.release
+		
+rpm包命名格式：
+			
+  name-VERSION-release.arch.rpm 
+		  
+  VERSION：major.minor.release
+				
+  release.arch：rpm包的发行号
+					
+  release.os: 2.el7.i386.rpm
+	
+  archetecture：i386, x64(amd64), ppc, noarch
+
+举例：					
+				
+  redis-3.0.2.targz --> redis-3.0.2-1.centos7.x64.rpm 
+
+  			
+			
+拆包：
+  主包和支包
+				
+  主包：name-VERSION-release.arch.rpm 
+		  
+  支包：name-function-VERSION-release.arch.rpm 
+					
+        function有：devel, utils, libs, ...
+				
+	
+依赖关系：
+			
+   X, Y, Z
+			
+				
+   X --> Y,Z
+					
+   Y --> A, B, C
+		   
+   C --> Y
+	
+				
+			
+前端工具：自动解决依赖关系；
+				
+   yum：rhel系列系统上rpm包管理器的前端工具；
+				
+   apt-get (apt-cache)：deb包管理器的前端工具；
+				
+   zypper：suse的rpm管理器前端工具；
+		
+   dnf：Fedora 22+系统上rpm包管理器的前端工具；
+				
+		
+程序包管理器：
+			
+  功能：将编译好的应用程序的各组成文件打包成一个或几个程序包文件，从而更方便地实现程序包的安装、升级、卸载和查询等管理操作； 
+		
+  1、程序包的组成清单（每个程序包都单独实现）；
+				
+     文件清单
+				
+     安装或卸载时运行的脚本
+	
+  2、数据库（公共）
+				
+     程序包的名称和版本；
+				
+     依赖关系；
+				
+     功能说明；
+	   
+     安装生成的各文件的文件路径及校验码信息；
+			
+	
+获取程序包的途径：
+		
+  (1) 系统发行版的光盘或官方的文件服务器（或镜像站点）：
+			      
+      http://mirrors.aliyun.com, 
+			
+      http://mirrors.sohu.com,
+			
+      http://mirrors.163.com 
+		
+  (2) 项目的官方站点
+	
+  (3) 第三方组织：
+			
+     (a) EPEL
+：epel-release			
+     (b) 搜索引擎
+
+	 http://pkgs.org
+				
+         http://rpmfind.net 
+	         
+         http://rpm.pbone.net 
+		
+建议：检查其合法性
+			
+来源合法性；
+			
+程序包的完整性；
+			
+
+CentOS系统上rpm命令管理程序包：
+		
+  安装、升级、卸载、查询和校验、数据库维护
+		
+		
+rpm命令：
+rpm  [OPTIONS]  [PACKAGE_FILE]
+			 
+         安装：-i, --install
+			
+         升级：-U, --update, -F, --freshen
+			
+         卸载：-e, --erase
+			
+         查询：-q, --query
+		 
+         校验：-V, --verify
+			
+         数据库维护：--builddb, --initdb
+			
+		
+         安装：
+	rpm {-i|--install}
+举例如下： 			
+
+rpm  -ivh  PACKAGE_FILE ...
+				
+				
+GENERAL OPTIONS：
+					
+             -v：verbose，详细信息
+					
+             -vv：更详细的输出
+				
+				
+[install-options]：
+					
+   -h：hash marks输出进度条；每个#表示2%的进度；
+					   
+   --test：测试安装，检查并报告依赖关系及冲突消息等；
+					
+   --nodeps：忽略依赖关系；不建议；
+					
+   --replacepkgs：重新安装
+
+					
+					
+注意：rpm可以自带脚本；
+						
+四类：
+--noscripts
+							
+preinstall：安装过程开始之前运行的脚本，%pre ，
+--nopre
+							
+postinstall：安装过程完成之后运行的脚本，%post ,
+ --nopost
+							
+preuninstall：卸载过程真正开始执行之前运行的脚本，%preun, --nopreun 
+							
+postuninstall：卸载过程完成之后运行的脚本，%postun , --nopostun
+					
+--nosignature：不检查包签名信息，不检查来源合法性；
+				
+--nodigest：不检查包完整性信息；
+
+
+升级：
+			
+rpm {-U|--upgrade} [install-options] PACKAGE_FILE ...
+			
+rpm {-F|--freshen} [install-options] PACKAGE_FILE ...
+			
+				
+     -Uvh：升级或安装；
+				
+     -Fvh：升级
+				
+				
+rpm  -Uvh PACKAGE_FILE ...
+				
+rpm  -Fvh PACKAGE_FILE ...
+				
+					
+     --oldpackage：降级；
+					
+     --force：强制升级；
+					
+				
+注意：
+(1) 不要对内核做升级操作；Linux支持多内核版本并存，因此，直接安装新版本内核；
+		
+(2) 如果某原程序包的配置文件安装后曾被修改过，升级时，新版本的程序提供的同一个配置文件不会覆盖原有版本的配置文件，而是把新版本的配置文件重命名(FILENAME.rpmnew)后提供；
+	    
+    卸载：
+			
+    rpm {-e|--erase} [--allmatches] [--nodeps] [--noscripts] [--test] PACKAGE_NAME ...
+			 
+     --allmatches：卸载所有匹配指定名称的程序包的各版本；
+			
+     --nodeps：忽略依赖关系
+				
+     --test：测试卸载，dry run模式
+
+				
+		
+查询：
+			
+   rpm {-q|--query} [select-options] [query-options]
+ 
+       [select-options]
+  
+          PACKAGE_NAME：查询指定的程序包是否已经安装，及其版本；
+				
+          -a, --all：查询所有已经安装过的包；
+				
+          -f  FILE：查询指定的文件由哪个程序包安装生成；
+				
+				
+          -p, --package PACKAGE_FILE：用于实现对未安装的程序包执行查询操作；
+				
+				
+          --whatprovides CAPABILITY：查询指定的CAPABILITY由哪个程序包提供；
+				
+          --whatrequires CAPABILITY：查询指定的CAPABILITY被哪个包所依赖；
+				
+			      
+      [query-options]
+				
+          --changelog：查询rpm包的changlog；
+				
+          -l, --list：程序安装生成的所有文件列表；
+				
+          -i, --info：程序包相关的信息，版本号、大小、所属的包组，等；
+				
+          -c, --configfiles：查询指定的程序包提供的配置文件；
+				
+          -d, --docfiles：查询指定的程序包提供的文档；
+				
+          --provides：列出指定的程序包提供的所有的CAPABILITY；
+				
+          -R, --requires：查询指定的程序包的依赖关系；
+				
+          --scripts：查看程序包自带的脚本片断；				
+用法：
+
+	-qi  PACKAGE, 
+        -qf FILE, 
+        -qc PACKAGE, 
+        -ql PACKAGE, 
+        -qd PACKAGE
+				
+        -qpi  PACKAGE_FILE, 
+        -qpl PACKAGE_FILE, 
+        -qpc PACKAGE_FILE, ...
+				
+		
+校验：
+			
+     rpm {-V|--verify} [select-options] [verify-options] 	
+            S file Size differs
+		文件的大小	
+            M Mode differs (includes permissions and file type)
+	文件的类型或文件的属性		    
+            5 digest (formerly MD5 sum) differs
+		MD5指纹码	
+            D Device major/minor number mismatch
+	设备号		
+            L readLink(2) path mismatch
+			Link路径          
+            U User ownership differs
+			文件用户
+            G Group ownership differs
+			文件所在组
+            T mTime differs
+			        文件创建时间
+常用命令：
+    rpm -Va
+    rpm -V  已经安装的软件名称
+    rpm -Vp rpm包的文件名
+    rpm -Vf 文件名称
+
+包来源合法性验正和完整性验正：
+		
+  来源合法性验正：
+		
+  完整性验正：
+		
+		
+  获取并导入信任的包制作者的密钥：
+			
+对于CenOS发行版来说：
+  1)ll /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6 
+    -rw-r--r--. 1 root root 1706 Nov 27  2013 /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
+  2)rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6 导入GPG文件
+  3)rpm -qa|grep pubkey    查询
+gpg-pubkey-17280ddf-5656e0be
+gpg-pubkey-c105b9de-4e0fd3a3
+  4)rpm -qi gpg-pubkey-17280ddf-5656e0be 
+    重点就是那些乱码
+补充说明：
+   不同版本的GPG(GNU privacy guard）金钥文件放置的位置可能不同，不过文件名大多是以GPG-KEY来说明的
+   使用find /etc/ -name '*GPG-KEY*'来查找
+ 			
+		
+验正：
+			
+  (1) 安装此组织签名的程序时，会自动执行验正；
+			
+  (2) 手动验正：rpm -K PACKAGE_FILE
+
+			
+	
+数据库重建：
+		
+  rpm管理器数据库路径：/var/lib/rpm/
+			
+  查询操作：通过此处的数据库进行；
+		
+获取帮助：
+			
+  CentOS 6：man rpm
+			
+  CentOS 7：man rpmdb
+			
+			
+  rpm {--initdb|--rebuilddb} [--dbpath DIRECTORY] [--root DIRECTORY]
+				
+       --initdb：初始化数据库，当前无任何数据库可实始化创建一个新的；当前有时不执行任何操作；
+				
+       --rebuilddb：重新构建，通过读取当前系统上所有已经安装过的程序包进行重新创建；
+			
+		
+
+
+
+10-1 
+博客作业：rpm包管理功能全解；
+	
+	
+
+回顾：Linux程序包管理的实现、rpm包管理器
+
+	
+rpm命令实现程序管理：
+		
+  安装：-ivh, --nodeps, --replacepkgs
+		
+  卸载：-e, --nodeps
+		
+  升级：-Uvh, -Fvh, --nodeps, --oldpackage
+		
+  查询：-q, -qa, -qf, -qi, -qd, -qc, -q --scripts, -q --changlog, -q --provides, -q --requires
+	  
+  校验：-V
+
+		
+  导入GPG密钥：--import, -K, --nodigest, --nosignature
+		
+  数据库重建：--initdb, --rebuilddb
+
+Linux程序包管理
+
+
+(2)
+
+CentOS: yum, dnf
+
+		
+  YUM: yellow dog, Yellowdog Update Modifier
+
+	
+  yum repository: yum repo
+		
+  存储了众多rpm包，以及包的相关的元数据文件（放置于特定目录下：repodata）；
+
+		
+  文件服务器：
+			
+       ftp://
+			
+       http://
+			
+       nfs://
+			       
+       file:///
+
+	
+yum客户端：
+		
+   配置文件：
+/etc/yum.conf：为所有仓库提供公共配置
+			
+  /etc/yum.repos.d/*.repo：为仓库的指向提供配置
+
+		
+仓库指向的定义：
+		
+ [repositoryID]
+		
+  name=Some name for this repository
+		
+  baseurl=url://path/to/repository/
+		  
+  enabled={1|0}
+		
+  gpgcheck={1|0}
+		
+  gpgkey=URL
+		
+  enablegroups={1|0}
+		
+  failovermethod={roundrobin|priority}
+	默认为：roundrobin，意为随机挑选；
+		
+  cost=
+	默认为1000
+
+
+		
+
+
+yum命令的用法：
+		
+yum [options] [command] [package ...]
+
+      
+     command is one of:
+       
+          * install package1 [package2] [...]
+        
+          * update [package1] [package2] [...]
+        
+          * update-to [package1] [package2] [...]
+       
+          * check-update
+        
+          * upgrade [package1] [package2] [...]
+        
+          * upgrade-to [package1] [package2] [...]
+        
+          * distribution-synchronization [package1] [package2] [...]
+        
+          * remove | erase package1 [package2] [...]
+        
+          * list [...]
+       
+          * info [...]
+       
+          * provides | whatprovides feature1 [feature2] [...]
+       
+          * clean [ packages | metadata | expire-cache | rpmdb | plugins | all ]
+      
+          * makecache
+       
+          * groupinstall group1 [group2] [...]
+        
+          * groupupdate group1 [group2] [...]
+ 
+          * grouplist [hidden] [groupwildcard] [...]
+       
+          * groupremove group1 [group2] [...]
+        
+          * groupinfo group1 [...]
+        
+          * search string1 [string2] [...]
+        
+          * shell [filename]
+       
+          * resolvedep dep1 [dep2] [...]
+        
+          * localinstall rpmfile1 [rpmfile2] [...]
+           (maintained for legacy reasons only - use install)
+      
+          * localupdate rpmfile1 [rpmfile2] [...]
+            (maintained for legacy reasons only - use update)
+      
+          * reinstall package1 [package2] [...]
+      
+          * downgrade package1 [package2] [...]
+       
+          * deplist package1 [package2] [...]
+        
+          * repolist [all|enabled|disabled]
+       
+          * version [ all | installed | available | group-* | nogroups* | grouplist | groupinfo ]
+        
+          * history [info|list|packages-list|packages-info|summary|addon-info|redo|undo|rollback|new|sync|stats]
+        
+          * check
+       
+          * help [command]
+
+    
+显示仓库列表：
+    	
+   repolist [all|enabled|disabled]
+
+    
+显示程序包：
+    	 		
+   yum list [all | glob_exp1] [glob_exp2] [...]
+    		
+   yum list {available|installed|updates} [glob_exp1] [...]
+
+    
+安装程序包：
+    	
+   install package1 [package2] [...]
+
+    	
+   reinstall package1 [package2] [...]  (重新安装)
+
+    
+升级程序包：
+    	
+   update [package1] [package2] [...]
+
+    	  
+   downgrade package1 [package2] [...] (降级)
+
+    
+检查可用升级：
+    	
+   check-update
+
+    
+卸载程序包：
+    	
+   remove | erase package1 [package2] [...]
+
+    
+查看程序包information：
+    	
+   info [...]
+
+    
+查看指定的特性(可以是某文件)是由哪个程序包所提供：
+    	
+  provides | whatprovides feature1 [feature2] [...]
+
+    
+清理本地缓存：
+    	
+  clean [ packages | metadata | expire-cache | rpmdb | plugins | all ]
+
+   
+构建缓存：
+    	  
+  makecache
+
+    
+搜索：
+    	
+  search string1 [string2] [...]
+
+    	
+以指定的关键字搜索程序包名及summary信息；
+
+    
+查看指定包所依赖的capabilities：
+    	
+  deplist package1 [package2] [...]
+
+    
+查看yum事务历史：
+    	
+    history [info|list|packages-list|packages-info|summary|addon-info|redo|undo|rollback|new|sync|stats]
+
+    
+安装及升级本地程序包：
+		
+    * localinstall rpmfile1 [rpmfile2] [...]
+ (maintained for legacy reasons only - use install)
+       
+    * localupdate rpmfile1 [rpmfile2] [...]
+  (maintained for legacy reasons only - use update)
+
+    
+包组管理的相关命令：
+        
+    * groupinstall group1 [group2] [...]
+        
+    * groupupdate group1 [group2] [...]
+        
+    * grouplist [hidden] [groupwildcard] [...]
+        
+    * groupremove group1 [group2] [...]
+        
+    * groupinfo group1 [...]
+
+
+
+
+10-2 
+如何使用光盘当作本地yum仓库：
+    	
+  (1) 挂载光盘至某目录，例如/media/cdrom
+    		
+       mount -r -t iso9660 /dev/cdrom /media/cdrom
+    	
+  (2) 创建配置文件
+    	
+      [CentOS7]
+    	
+      name=
+    	
+      baseurl=
+    	
+      gpgcheck=
+    	
+      enabled=
+
+    
+yum的命令行选项：
+    	
+  --nogpgcheck：禁止进行gpg check；
+    	
+  -y: 自动回答为“yes”；
+    	
+  -q：静默模式；
+    	  
+  --disablerepo=repoidglob：临时禁用此处指定的repo；
+    	
+  --enablerepo=repoidglob：临时启用此处指定的repo；
+    	
+  --noplugins：禁用所有插件；
+
+    
+yum的repo配置文件中可用的变量：
+    	
+  $releasever: 当前OS的发行版的主版本号；
+    	
+  $arch: 平台；
+    	
+  $basearch：基础平台；
+    	
+  $YUM0-$YUM9
+
+ 
+举例如下   	
+http://mirrors.magedu.com/centos/$releasever/$basearch/os
+
+
+    
+创建yum仓库：
+  	
+    createrepo [options] <directory>
+
+ 
+自建crmsh的yum仓库具体案例：
+    1）yum install -y  createrepo 
+    2）cd /root/crmsh 
+    3）createrepo . (目录必须指定，.表示当前目录）
+    4）ll 查看是否有repodata目录生成
+    5）vim /etc/yum.repos.d/crmsh.repo
+       [crmsh]
+       name=crmsh for centos
+       baseurl=file:///root/crmsh/ （注意这里不能写生成的repodata目录，写repodata所在上层目录）
+       gpgcheck=0
+    6）yum info crmsh 验证是否可以找到crmsh
+       
+程序包编译安装：
+    	
+  testapp-VERSION-release.src.rpm --> 安装后，使用rpmbuild命令制作成二进制格式的rpm包，而后再安装；
+
+    	
+  源代码 --> 预处理 --> 编译(gcc) --> 汇编 --> 链接 --> 执行
+
+
+
+补充rpmbuild命令：
+   1）将SRPM进行编译与打包的操作，最后生成rpm文件，但是生成的rpm文件没有安装，需要利用rpm命令再安装
+      rpmbuild --rebuild   *.src.rpm 
+   2）这个动作会直接编译，打包，安装rpm文件
+      rpmbuild --recompile *.src.rpm
+   3）SRPM需要使用的路径：
+        rpmbuild/SOURCES：放置软件的源文件（*.tar.gz的文件）
+        rpmbuild/SPECS：软件的设置文件
+        rpmbuild/BUILD：编译过程中产生的中间数据
+        rpmbuild/RPMS：生成的rpm
+        rpmbuild/SRPMS：生成的srpm
+   4）编译并同时生成rpm和srpm文件
+        cd rpmbuild/SPECS
+        rpmbuild -ba *.spec
+   5) 仅编译成rpm文件
+        rpmbuild -bb *.spec 
+   
+    
+源代码组织格式：
+    		
+   多文件：文件中的代码之间，很可能存在跨文件依赖关系；
+
+    		
+   C、C++： 
+     make (configure --> Makefile.in --> makefile)
+    		
+     java: maven
+
+
+ 
+   		
+C
+/C++代码编译安装三步骤：
+    			
+     1）./configure：
+    				
+         (1) 通过选项传递参数，指定启用特性、安装路径等；执行时会参考用户的指定以及Makefile.in文件生成makefile；
+    				
+         (2) 检查依赖到的外部环境；
+    			
+     2）make    			
+         根据makefile文件，构建应用程序；
+    			
+     3）make install
+
+
+C/C++编译安装总结：
+					
+   ./configure --> 结合Makefile.in ==> 生成makefile
+		   
+   make ===>结合makefile ==> 生成binary, library, configfile, manual
+				
+   make install
+	 
+   		
+开发工具：
+    			
+   autoconf: 生成configure脚本
+    		  
+   automake：生成Makefile.in
+
+    		
+建议：安装前查看INSTALL，README
+
+    	
+开源程序源代码的获取：
+    		
+官方自建站点：
+    			
+  apache.org (ASF)
+    			
+  mariadb.org
+    			
+  ...
+    		
+代码托管：
+    			
+  SourceForge
+			
+  Github.com
+    	  
+  code.google.com
+
+    	
+  c/c++: gcc (GNU C Complier)
+
+   
+ 	
+编译C源代码：
+    		
+  前提：提供开发工具及开发环境
+    			
+  开发工具：make, gcc等
+    			
+  开发环境：开发库，头文件
+ ，glibc：标准库
+
+    			
+通过“包组”提供开发组件
+，如果是CentOS 6: "Development Tools", "Server Platform Development",
+
+    		
+  第一步：configure脚本
+    			
+          选项：指定安装位置、指定启用的特性
+
+    			
+          --help: 获取其支持使用的选项
+    				 
+          选项分类：
+    					
+              安装路径设定：
+    						
+                  --prefix=/PATH/TO/SOMEWHERE: 指定默认安装位置；默认为/usr/local/
+    						   
+                  --sysconfdir=/PATH/TO/SOMEWHERE：配置文件安装位置；
+
+    					
+              System types:
+
+    					
+              Optional Features: 可选特性
+    						
+                --disable-FEATURE
+    						
+                --enable-FEATURE[=ARG]
+
+    			
+              Optional Packages: 可选包
+    						
+                --with-PACKAGE[=ARG]
+    						
+                --without-PACKAGE
+
+    		
+   第二步：make
+
+    		
+   第三步：make install
+
+    	
+安装后的配置：
+    		
+  (1) 导出二进制程序目录至PATH环境变量中；
+    			
+      编辑文件/etc/profile.d/NAME.sh
+    				
+      export PATH=/PATH/TO/BIN:$PATH
+
+    		
+  (2) 导出库文件路径
+    		      
+      1）编辑/etc/ld.so.conf.d/NAME.conf
+    				
+         添加新的库文件所在目录至此文件中；
+
+    			
+      2）让系统重新生成缓存：
+    		      
+              ldconfig [-v]
+
+    		
+  (3) 导出头文件
+    			
+      基于链接的方式实现：
+    				
+      ln -sv 
+
+    		 
+  (4) 导出帮助手册
+    			
+      编辑/etc/man.config文件
+ 
+
+   				
+添加一个MANPATH
+
+	练习：
+		
+1、yum的配置和使用；包括yum repository的创建；
+		
+2、编译安装apache 2.2; 启动此服务；
+
+	
+博客作业：程序包管理：rpm/yum/编译				
+				
+
+桌面环境：
+Windows 7， OpenSUSE 13.2,  Kubuntu(KDE)
+	
+
+回顾：yum 程序包管理器和编译安装
+
+	
+ C/S：
+		
+   yum client (yum)
+		
+   yum repository (ftp/http/https)
+
+子命令：
+		
+  list, clean, makecache, grouplist, info, whatprovides
+	
+  install, update, remove, groupinstall, groupupdate, groupremove, groupinfo
+		
+		
+  rpm -ivh  /usr/local/src/testapp-3.2.1-1.el7.x86_64.rpm 
+
+
+
+12-1
+进程及作业管理
+
+	
+ 内核的功用：进程管理、文件系统、网络功能、内存管理、驱动程序、安全功能
+
+--重要
+ Process: 运行中的程序的一个副本；
+		
+ 存在生命周期
+
+	
+ Linux内核存储进程信息的固定格式：task struct
+		
+ 多个任务的的task struct组件的链表：task list
+
+	
+ 进程创建：
+		
+  init
+			
+    父子关系
+			 
+    进程：都由其父进程创建
+				
+          fork(), clone()
+
+		
+ 进程优先级：
+			
+   0-139：
+				
+           1-99：实时优先级； 
+
+数字越大，优先级越高；		   
+        100-139：动态优先级；
+ 数字越小，优先级越高；可被用户管理
+
+				
+  Nice值：
+					    
+     -20,19
+补充说明：nice值只针对动态优先级，中心值为120
+
+Big O
+				
+    O(1), O(logn), O(n), O(n^2), O(2^n)
+
+		
+  进程内存：
+			
+   Page Frame: 页框，用来存储页面数据
+				
+   存储Page
+
+				
+   MMU：Memory Management Unit
+
+		
+   IPC: Inter Process Communication
+			   
+   同一主机上：
+				
+      signal
+				
+      shm: shared memory
+				
+      semerphor
+
+			
+   不同主机上：
+	      
+      rpc: remote procecure call
+				
+      socket: 
+
+	
+   Linux内核：抢占式多任务
+
+		
+   进程类型：
+			
+      守护进程: 在系统引导过程中启动的进程，跟终端无关的进程；
+			
+      前台进程：跟终端相关，通过终端启动的进程
+（也可把在前台启动的进程送往后台，以守护模式运行）
+
+		
+   进程状态：
+			
+      运行态：running
+			
+      就绪态：ready
+						
+      可中断睡眠：interruptable
+				
+      不可中断睡眠：uninterruptable
+			
+      停止态：暂停于内存中，但不会被调度，除非手动启动之：stopped
+			
+      僵死态：zombie
+
+
+		
+   进程的分类：
+			
+           CPU-Bound
+，cpu密集型			
+           IO-Bound
+
+，io密集型		
+           参考书籍：《Linux内核设计与实现》，《深入理解Linux内核》
+
+12-2					
+			
+	
+Linux系统上的进程查看及管理工具：pstree, ps, pidof, pgrep, top, htop, glances, pmap, vmstat, dstat, kill, pkill, job, bg, fg, nohup, nice, renice, killall, ...
+		
+
+CentOS 5: SysV init
+		
+CentOS 6：upstart
+		
+CentOS 7：systemd
+		
+			
+/sbin/init  
+		
+	 
+   pstree命令：
+pstree-display a tree of processes，显示整个系统的进程树
+	
+               在centos5和6中，第一个进程是init
+               在centos7中，第一个进程是systemd	
+		
+   ps命令：
+			      
+   /proc/：
+       内核中的状态信息；
+				
+       内核参数：
+					
+          可设置其值从而调整内核运行特性的参数；/proc/sys/
+		   
+          状态变量：其用于输出内核中统计信息或状态信息，仅用于查看；
+					
+			
+          参数：模拟成文件系统类型；
+				
+			
+   进程：
+				
+      /proc/#：
+#指PID号 
+				
+			
+      ps - report a snapshot of the current processes.
+      ps [options]：			
+      选项有三种风格：
+          1   UNIX options, which may be grouped and must be preceded by a dash（破折号）						
+          2   BSD options, which may be grouped and must not be used with a dash.
+          3   GNU long options, which are preceded by two dashes.		      
+      启动进程的方式：
+         系统启动过程中自动启动：与终端无关的进程；
+         用户通过终端启动：与终端相关的进程；
+										
+      选项：	
+         a：所有与终端相关的进程；
+         x：所有与终端无关的进程；		
+         u：以用户为中心组织进程状态信息显示；
+         VSZ：虚拟内存集（占用的虚拟内存大小，即线性地址空间）					 
+         RSS：Resident Size，常驻内存集（即不能交换到swap空间的数据，只能存在于内存中						
+         STAT：      
+            R：running
+            S：interruptable sleeping
+	可被打扰			    
+            D：uninterruptable sleeping
+	不可被打扰							
+            T：Stopped
+		停止			   
+            Z：zombie
+		僵尸态（进程已经终止但是无法从内存中删除，也可以理解为其父进程不存在了）						
+            +：前台进程					
+            l：多线程进程		
+            N：低优先级进程					
+            <：高优先级进程			    
+            s：session leader 		
+           -e：显示所有进程		
+           -f：显示完整格式的进程信息		
+           -F：显示完整格式的进程信息；					    
+常用组合之一：aux
+常用组合之二：-ef
+     C：pcpu，cpu utilization，即CPU占用率
+     STIME：启动时间
+     TIME：累计运行时间														
+常用组合之三：-eFH
+     PSR：运行于哪颗CPU之上				
+     -H：以层级结构显示进程的相关信息；				
+常用组合之四：
+    ps -eo  field1, field2,...
+    ps axo  field1, field2,...  o表示显示自定义的字段，多个字段以逗号分隔；常用的field：pid, ni（nice值）, pri（优先级）, psr, pcpu, stat, command, tty, ppid, rtprio
+(实时优先级）
+
+举例：
+   ps axo pid,command,tty,lstart,etime 最后lstart表示进程启动时间，etime表示进程已经运行时间
+]# ps axo pid,tty,command,lstart,etime|grep zabbix_agentd  查看zabbix_agentd进程启动时间和已经运行时间
+754817 pts/0    grep zabbix                 Fri Jan 12 10:16:07 2018       00:00
+862711 ?        ./zabbix_agentd             Tue Jan  2 13:51:08 2018  9-20:24:59
+862712 ?        ./zabbix_agentd: collector  Tue Jan  2 13:51:08 2018  9-20:24:59
+862713 ?        ./zabbix_agentd: listener # Tue Jan  2 13:51:08 2018  9-20:24:59
+862714 ?        ./zabbix_agentd: listener # Tue Jan  2 13:51:08 2018  9-20:24:59
+862715 ?        ./zabbix_agentd: listener # Tue Jan  2 13:51:08 2018  9-20:24:59
+862716 ?        ./zabbix_agentd: active che Tue Jan  2 13:51:08 2018  9-20:24:59
+
+pgrep, pkill命令：
+- look up or signal processes based on name and other attributes
+（功能被ps命名替代）		    
+    pgrep [options] pattern
+					
+          -u ：effective user
+					
+          -U ：real user
+					
+          -t  TERMINAL：与指定的终端相关的进程；
+		  
+          -l：显示进程名；
+					
+          -a：显示完整格式的进程名；
+					
+          -P pid：显示此进程的子进程；
+
+pidof命令：
+根据进程名，取其pid；
+
+
+				
+	
+top命令：- display Linux processes 动态查看进程信息								
+排序：
+    P：以占据CPU百分比排序；					
+    M：以占据内存百分比排序；		
+    T：累积占用CPU时间排序；	
+首部信息：		
+    uptime信息：l命令 （隐藏uptime信息）				    
+    tasks及cpu信息：t命令			
+    内存信息：m命令	
+    退出命令：q 
+    修改刷新时间间隔：s			
+    终止指定的进程：k  （打k后会要求输入你想kill掉的进程号，然后要敲enter键进行确认，直到进程确实被kill掉）						
+选项：
+    -d #：指定刷新时间间隔，默认为3秒；		    
+    -b：  以批次方式显示；	
+    -n #：显示多少批次；
+]# top   按top命令后，再按1，如果有多个cpu，则会分别显示出每个cpu使用情况
+Tasks: 125 total,   1 running, 124 sleeping,   0 stopped,   0 zombie
+Cpu0  :  1.0%us,  0.3%sy,  0.0%ni, 98.7%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+Cpu1  :  1.0%us,  0.7%sy,  0.0%ni, 98.3%id,  0.0%wa,  0.0%hi,  0.0%si,  0.0%st
+Mem:   1988856k total,  1902300k used,    86556k free,   140004k buffers
+Swap:   524280k total,   144192k used,   380088k free,   277920k cached
+]# free
+             total       used       free     shared    buffers     cached
+Mem:       1988856    1899812      89044         20     140520     275656
+-/+ buffers/cache:    1483636     505220
+Swap:       524280     144192     380088
+重点解释第二行(mem)的used/free与第三行(-/+ buffers/cache) used/free的区别。
+第二行是从OS的角度来看，因为对于OS来说buffers/cached 都是属于被使用，所以他的可用内存是89044KB,已用内存是1899812KB,其中包括，
+内核OS使用+Application(X, oracle,etc)使用的+buffers+cached
+第三行所指的是从应用程序角度来看，对于应用程序来说，buffers/cached是等于可用的，因为buffer/cached是为了提高文件读取的性能，当应用程序需在用到内存的时候，
+buffer/cached会很快地被回收。所以从应用程序的角度来说，可用内存=free+buffers+cached
+
+
+uptime命令：显示系统时间、运行时长及平均负载；
+				
+  过去1分钟、5分钟和15分钟的平均负载；
+					
+  等待运行的进程队列的长度；
+
+举例如下					
+[root@node4 ~]# uptime 
+ 18:07:48 up  1:26,  1 user,  load average: 0.45, 0.93, 0.44
+
+
+回顾： 
+Linux OS基础概念、进程查看的几工具；
+
+	
+内核的功能：进程管理（进程调度，务必要和内存管理联系到一起）
+		
+进程调度：保存现场，恢复现场；
+	
+task struct：任务结构；
+			
+task list：任务列表；
+		
+		
+CPU：us, sy, ni, id, hi, si, cs, st
+		
+Memory：VSZ，RSS，SHM
+		
+	
+命令： pstree（显示进程树）, pgrep, pkill, ps, top, uptime 
+	
+
+
+
+
+
+12-3
+Linux进程及作业管理(2)
+
+	
+	
+	
+进程管理类命令：
+	
+		  
+htop命令：
+
+需要先yum install -y htop
+支持鼠标操作
+敲ESC键回到主页面			
+      选项：
+				
+      -d #：指定延迟时间间隔；
+				
+      -u UserName：仅显示指定用户的进程（敲u键）
+		     
+      -s COLUME：以指定字段进行排序；
+		
+  子命令：
+				
+       l：显示选定的进程打开的文件列表（先用鼠标或者光标选定一个进程，然后敲l键）				      
+       s：跟踪选定的进程的系统调用（先用鼠标或者光标选定一个进程，然后敲s键）				
+       t：以层级关系显示各进程状态（先用鼠标或者光标选定一个进程，然后敲t键，然后再次敲t键返回主页）				
+       a：将选定的进程绑定至某指定的CPU核心；
+
+			
+vmstat命令：- Report virtual memory statistics			
+vmstat  [options]  [delay [count]]
+命令产生的内容说明				
+procs：	
+    r：等待运行的进程的个数，即CPU上等待运行的任务的队列长度；				   
+    b：处于不可中断睡眠态的进程个数，即被阻塞的任务队列的长度；
+memory：
+  swpd：交换内存使用总量；				
+  free：空闲的物理内存总量；
+  buffer：用于buffer的内存总量；		
+  cache：用于cache的内存总量；
+swap	   
+   si：数据进入swap中的数据速率（kb/s）					
+   so：数据离开swap的速率(kb/s)
+io	   
+   bi：从块设备读入数据到系统的速度（kb/s）					
+   bo：保存数据至块设备的速率（kb/s）
+system
+   in：interrupts，中断速率；					
+   cs：context switch, 上下文切换的速率；	
+cpu 
+   us：user space					
+   sy：system			
+   id：idle				   
+   wa：wait 				
+   st: stolen  被虚拟化技术偷走的时间			
+选项：
+  -s：显示内存统计数据；
+举例：
+]# vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+ 8  0 115028 135768     32 3201416    0    0    36    44    0    0  2  2 95  0  0
+]# vmstat 2 3 表示2秒显示一次，共显示3次
+
+案例：检查系统IO使用状态的命令是：iostat -d /dev/sda -k 1 2
+  -d后面接要监控的磁盘设备，如果不指明就是监控所有设备
+  -k表示某些使用block为单位的列，强制使用KB为单位；
+  1表示数据显示每隔1秒刷新一次。
+  2表示合计显示2次
+  iostat主要用于监控系统设备的IO负载情况，iostat首次运行时显示自系统启动开始的各项统计信息，之后运行iostat将显示自上次运行该命令以后的统计信息。
+  用户可以通过指定统计的次数和时间来获得所需的统计信息。
+
+从hdfs备份1.5T数据到/dev/vdc磁盘，从util可以看出磁盘io使用率为99.4%，已经满了
+]$ iostat -xmt   1 2  x表示更详细的显示统计信息，m表示以M为单位进行显示，比如rMB/s，wMB/s，t控制时间显示
+Linux 2.6.32-431.11.5.el6.ucloud.x86_64 (u03dpc01.enai.corp) 	05/18/2018 	_x86_64_	(2 CPU)
+05/18/2018 05:44:52 PM
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+           3.82    0.00    1.25    0.16    0.05   94.72
+Device:         rrqm/s   wrqm/s     r/s     w/s    rMB/s    wMB/s avgrq-sz avgqu-sz   await  svctm  %util
+vda               0.51   152.09    0.56   31.40     0.01     0.73    47.37     0.05    1.60   0.15   0.47
+vdb               0.01    15.30    3.67    0.21     0.05     0.06    60.29     0.01    3.27   0.22   0.08
+vdc               0.00     2.69    0.08    0.02     0.01     0.01   412.64     0.00   36.75   8.06   0.08
+05/18/2018 05:44:53 PM
+avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+           2.01    0.00   21.11   74.37    0.00    2.51
+Device:         rrqm/s   wrqm/s     r/s     w/s    rMB/s    wMB/s avgrq-sz avgqu-sz   await  svctm  %util
+vda               0.00     0.00    1.00    0.00     0.01     0.00    16.00     0.00    0.00   0.00   0.00
+vdb               0.00     0.00    0.00    0.00     0.00     0.00     0.00     0.00    0.00   0.00   0.00
+vdc               0.00 10090.00    0.00   70.00     0.00    32.54   951.89   141.42 1462.83  14.20  99.40
+
+以上各列的含义如下：
+rrqm/s: 每秒对该设备的读请求被合并次数，文件系统会对读取同块(block)的请求进行合并
+wrqm/s: 每秒对该设备的写请求被合并次数
+r/s: 每秒完成的读次数
+w/s: 每秒完成的写次数
+rkB/s: 每秒读数据量(kB为单位)
+wkB/s: 每秒写数据量(kB为单位)
+avgrq-sz:平均每次IO操作的数据量(扇区数为单位)
+avgqu-sz: 平均等待处理的IO请求队列长度
+await: 平均每次IO请求等待时间(包括等待时间和处理时间，毫秒为单位)
+svctm: 平均每次IO请求的处理时间(毫秒为单位)
+%util: 采用周期内用于IO操作的时间比率，即IO队列非空的时间比率
+
+对于以上示例输出，我们可以获取到以下信息：
+每秒向磁盘上写32M左右数据(wMB/s值)
+每秒有70次IO操作(r/s+w/s)，其中以写操作为主体
+平均每次IO请求等待处理的时间为1462.83毫秒，处理耗时为14.2毫秒
+等待处理的IO请求队列中，平均有141.42个请求驻留
+磁盘io使用率在99.4%左右，已经满了
+
+案例：
+在Linux下，如何分析一个程序达到性能瓶颈的原因，请分别从CPU、内存、IO、网络的角度判断是谁导致的瓶颈？注意现在的机器CPU是多核。
+答案：
+A. 用w命令看系统负载高不高(可以直接用top查看平均负载)，如果高可能是CPU不够用，进程太多运行太慢，也可能是磁盘I/O太高了。
+B. 用vmstat 命令来查看各个指标，着重分析r,b,swpd,si,so,bi,bo,us,wa.若r列或者us列数值偏高则说明cpu有瓶颈，若b列或者wa列数值偏高同时bi或bo的数字很大，则说明磁盘有压力
+   若swpd一直变化，并且si和so一直不为0，则说明内存不够了。
+C. 用top命令来分析哪个进程耗费cpu最多，默认按使用cpu多少排序，按M也可以按内存使用多少排序。P M T表示各自按CPU,memory，time来排序
+   top命令后按1可以分别显示每个cpu使用情况
+D. 用sar -n DEV 1 10或者nload 命令可以查看网卡的流量（若没有nload命令，请使用yum install epel-release; yum install -y nload 安装）
+E. 用iotop命令可以查看磁盘读写速度 （yum install -y iotop 安装）
+
+案例：sar命令的使用
+sar（System ActivityReporter系统活动情况报告）是目前Linux上最为全面的系统性能分析工具之一，可以从多方面对系统的活动进行报告，
+包括：文件的读写情况、系统调用的使用情况、磁盘I/O、CPU效率、内存使用状况、进程活动及IPC有关的活动等，
+sar命令由sysstat安装包安装，本文主要以CentOS 6系列x64系统为例，介绍sar命令。
+sar命令常用格式：
+用法: sar [ 选项 ] [ <时间间隔> [ <次数> ] ]
+yum install -y sysstat
+具体使用可以参考网上资料
+
+
+pmap命令：
+- report memory map of a process
+ 显示进程的内存映射表			
+			
+pmap [options] pid  一定要跟pid号				
+        -x：显示详细格式的信息；
+举例：
+[root@node4 ~]# pmap  1      1是PID号码
+1:   /sbin/init
+00007f33850a8000     48K r-x--  /lib64/libnss_files-2.12.so 表示从00007f33850a8000该物理地址开始的48K
+00007f33850b4000   2048K -----  /lib64/libnss_files-2.12.so
+00007f33852b4000      4K r----  /lib64/libnss_files-2.12.so
+00007f33852b5000      4K rw---  /lib64/libnss_files-2.12.so
+..........				
+			
+另一种查看方式
+   cat  /proc/PID/maps
+
+			
+		
+glances命令：使用方法和htop类似
+
+   - A cross-platform curses-based monitoring tool
+,基于curse的一个跨平台监控工具
+yum install -y glances 			
+		   
+内建命令：
+				
+			
+   常用选项：
+				
+         -b：以Byte为单位显示网上数据速率；
+			         
+         -d：关闭磁盘I/O模块；
+				
+         -m：关闭mount模块；
+				
+         -n：关闭network模块；
+				
+         -t #：刷新时间间隔；
+			
+         -1：每个cpu的相关数据单独显示；
+				
+         -o {HTML|CSV}：输出格式；
+				
+         -f  /PATH/TO/SOMEDIR：设定输出文件的位置；
+			
+			
+C/S模式下运行glances命令：
+				
+  服务模式：
+					     
+     glances  -s  -B  IPADDR
+（本机的某地址，用于监听）
+					
+				
+  客户端模式：
+					
+     glances  -c  IPADDR（是远程服务器的地址）
+
+					
+		
+dstat命令：使用上类似vmstat
+
+    作用：versatile tool for generating system resource statistics
+查看系统资源统计的工具
+    yum install -y dstat 			
+			
+dstat [-afv] [options..] [delay [count]]
+			
+			
+    options：
+				
+       -c， --cpu：显示cpu相关信息；
+					
+       -C #,#,...,total
+				
+       -d, --disk：显示磁盘的相关信息
+					
+       -D sda,sdb,...,tobal
+				
+       -g：显示page相关的速率数据；
+				
+       -m：Memory的相关统计数据
+				
+       -n：Interface的相关统计数据；
+				
+       -p：显示process的相关统计数据；
+				
+       -r：显示io请求的相关的统计数据；
+		
+       -s：显示swapped的相关统计数据；
+       -y：显示system的相关统计数据
+				
+				
+       --tcp 
+			       
+       --udp
+				
+       --raw 
+				
+       --socket 
+				
+				
+       --ipc 
+				
+			
+       --top-cpu：显示最占用CPU的进程；
+				
+       --top-io：最占用io的进程；
+				
+       --top-mem：最占用内存的进程；
+				
+       --top-lantency：延迟最大的进程；
+举例如下：
+[root@node4 ~]# dstat     2 3 
+----total-cpu-usage---- -dsk/total- -net/total- ---paging-- ---system--
+usr sys idl wai hiq siq| read  writ| recv  send|  in   out | int   csw 
+  2   7  88   1   1   1| 104k   81k|   0     0 |1261B 4025B| 280   142 
+  0   1 100   0   0   0|   0     0 |  90B  627B|   0     0 |  18    17 
+  0   0 100   0   0   0|   0     0 |  60B  350B|   0     0 |  20    24 
+  0   0 100   0   0   0|   0     0 |  60B  350B|   0     0 |  16    17 
+[root@node4 ~]# dstat  --tcp     2 3 
+----tcp-sockets----
+lis act syn tim clo
+ 12   5   0   0   0
+ 12   5   0   0   0
+ 12   5   0   0   0
+ 12   5   0   0   0
+
+
+
+				
+		
+kill命令：
+- terminate a process
+			
+			
+用于向进程发送信号，以实现对进程的管理；
+			
+			
+显示当前系统可用信号：
+				
+   kill -l [signal]
+	
+每个信号的标识方法有三种：
+					
+        1) 信号的数字标识；
+					
+        2) 信号的完整名称；
+					
+        3) 信号的简写名称；
+					
+			
+向进程发信号：
+		   
+   kill  [-s signal|-SIGNAL]  pid...
+				
+				
+常用信号：
+					
+  1）SIGHUP：无须关闭进程而让其重读配置文件；
+					
+  2）SIGINT：终止正在运行的进程，相当于Ctrl+c
+					
+  9）SIGKILL：杀死运行中的进程；
+					
+ 15）SIGTERM：终止运行中的进程；
+					
+ 18）SIGCONT：
+			  
+ 19）SIGSTOP：相当于用键盘输入
+Ctrl+z来暂停一个进程的进行
+举例如下
+   kill -9        pid号码
+   kill -SIGKILL  pid号码
+以上两个命令表示同一个意思
+
+				
+		
+killall命令：
+- kill processes by name
+			
+			
+killall  [-SIGNAL]  program
+
+举例如下：
+   killall -9|-SIGKILL httpd
+			
+	
+Linux系统作业控制：
+		
+		
+  job：
+	
+   前台作业(foregroud)：通过终端启动，且启动后会一直占据终端；
+			   
+   后台作业(backgroud)：可以通过终端启动，但启动后即转入后台运行（释放终端）；
+			
+		
+如何让作业运行于后台？
+			
+  (1) 前台运行中的作业
+，执行Ctrl+z
+送往后台，但是送往后台后，作业会转为停止态；
+			
+  (2) 尚未启动的作业
+				     
+     # COMMAND &
+				
+				
+     注意：此类作业虽然被送往后台，但其依然与终端相关；如果希望把送往后台的作业剥离与终端的关系：
+					
+     # nohup  COMMAND  &
+					
+		
+查看所有的作业：
+	     
+     # jobs
+ 可实现作业控制的常用命令：
+			
+     # fg  [[%]JOB_NUM]：把指定的作业调回前台；
+			     
+     # bg  [[%]JOB_NUM]：让送往后台的作业在后台继续运行；
+			
+     # kill  %JOB_NUM：终止指定的作业，%表示后面接的是job number，比如kill -9  %1
+			
+	
+调整进程优先级：
+		
+		
+     可通过nice值调整的优先级范围：100-139
+（即静态优先级）			
+     分别对应于：-20, 19
+			
+		
+     进程启动时，其nice值默认为0，其优先级是120；
+		
+		
+nice命令：
+			
+    以指定的nice值启动并运行命令
+				
+# nice  [OPTION]  [COMMAND [ARGU]...]
+		   
+  选项：
+						
+      -n NICE
+（注意：仅管理员可调低nice值） 
+
+举例如下：
+   nice -n -5 htop 
+				
+		
+renice命令：
+修改nice值			
+# renice  [-n]  NICE  PID...
+
+举例如下：
+   renice -n -6 PID 
+			
+		
+查看Nice值和优先级：
+     ps  axo  pid, ni, pri, command
+未涉及到的命令：sar,  tsar,  iostat,  iftop,  nethog,  ...
+iftop的输出从整体上可以分为三大部分：
+第一部分是iftop输出中最上面的一行，此行是流量刻度，用于显示网卡带宽流量；
+第二部分是iftop输出中最大的一个部分，此部分又分为左中右三列，最右列又分为三个小列，这些实时参数分别表示外部IP连接到本机2s 10s和40s的平均流量;
+第三部分位于iftop输出的最下面，可以分为三行，其中TX表示发送的数据，RX表示接受的数据，TOTAL表示发送和接收的全部流量。与这三行对应的有三列，其中cum列表示从运行iftop到目前的发送，
+接收和总数据流量；peak列表示发送，接收以及总的流量峰值；rates列表示过去2s 10s和40s的平均流量值
+
+12-4
+博客作业： htop/dstat/top/ps命令的使用；
+
+	
+
+网络客户端工具：
+	
+	
+   ping/lftp/ftp/lftpget/wget等；
+	
+	
+ping命令：	
+		
+   send ICMP ECHO_REQUEST to network hosts
+		
+ICMP：Internet Control Message Protocol		
+		
+		
+ping  [OPTION]  destination
+			
+      -c #：发送的ping包个数；
+			
+      -w #：ping命令超时时长；
+			
+      -W #：一次ping操作中，等待对方响应的超时时长；
+			
+      -s #：指明ping包报文大小；
+		
+	
+
+hping命令：（package: hping3）
+
+yum install hping3 
+centos6上hping命令好像不能使用？		
+send (almost) arbitrary TCP/IP packets to network hosts
+		
+			
+     --fast
+	     
+     --faster
+			
+     --flood
+ (等同于攻击，能发多快发多快）			
+     -i uX
+		
+	
+traceroute命令：
+- print the route packets trace to network host
+		
+		
+跟踪从源主机到目标主机之间经过的网关；
+
+举例如下：
+  traceroute  www.baidu.com 
+		
+	
+ftp命令：
+		
+ftp: File Transfer Protocol
+			
+			
+ftp服务命令行客户端工具；
+要先安装好ftp才可以使用			
+	
+lftp命令：
+连接客户端		
+    lftp  [-p port]  [-u user[,pass]] [site]
+		
+	   
+get, mget
+		
+   put, mput
+		
+   rm, mrm
+		
+	
+lftpget命令：
+		
+   lftpget [-c] [-d] [-v] URL [URL...]
+			
+      -c：继续此前的下载；
+
+			
+	
+wget命令：
+		
+   The non-interactive network downloader.
+		
+		
+wget [option]... [URL]...
+			
+        -b：在后台执行下载操作；
+			
+        -q：静默模式，不显示下载进度；
+			
+        -O file：下载的文件的保存位置，相当于另存为；注意是大写O
+			
+        -c：续传；
+		
+        --limit-rate=amount：以指定的速率传输文件；
+			
+
+
+13-1
+CentOS系统启动流程
+
+	
+Linux系统的组成部分：内核+根文件系统 
+		
+内核：进程管理、内存管理、网络协议栈、文件系统、驱动程序、安全功能
+			
+IPC：Inter Process Communication
+				
+消息队列、semerphor、shm
+				
+socket
+				
+	
+运行中的系统环境可分为两层：内核空间、用户空间 
+		
+    用户空间：应用程序（进程或线程）
+		
+    内核空间：内核代码（系统调用）
+		
+	
+内核设计流派：
+		  
+    单内核设计：把所有功能集成于同一个程序，比如
+Linux
+		
+    微内核设计：每种功能使用一个单独的子系统实现，如Windows, Solaris
+			
+		
+		
+Linux内核特点：
+			
+  支持模块化：.ko (kernel object)
+			
+  支持模块运行时动态装载或卸载；
+			
+			
+组成部分：
+				
+  核心文件：
+  /boot/vmlinuz-VERSION-release 
+				
+  ramdisk：
+	    
+    CentOS 5：/boot/initrd-VERSION-release.img
+					
+    CentOS 6,7：/boot/initramfs-VERSION-release.img
+				
+模块文件：/lib/modules/VERSION-release 
+				
+	
+CentOS 系统的启动流程：
+		
+		
+    POST：加电自检；
+		    
+    ROM：CMOS
+				
+    BIOS：Basic Input and Output System
+				
+			
+    ROM+RAM 
+			
+		
+    Boot Sequence：
+按次序查找各引导设备，第一个（有引导程序）的设备即为本次启动要用到的设备；可以在BIOS中调整
+			
+			
+    bootloader：引导加载器，程序；
+				
+       Windows：ntloader
+					
+       Linux：
+				
+         LILO：linux  loader
+						
+         GRUB：Grand Uniform Bootloader
+	统一引导						
+               GRUB 0.X：Grub  Legacy
+（遗产）		    
+               GRUB 1.X：Grub2
+	
+						
+					
+功能：
+  提供一个菜单，允许用户选择要启动的系统或不同的内核版本；
+  把用户选定的内核装载到RAM中的特定空间中，解压、展开，而后把系统控制权移交给内核；
+---这是bootload的核心功能					
+				
+MBR：Master Boot Record
+					
+     512bytes：
+						
+       446bytes：bootloader
+	       
+       64bytes：fat 
+						
+       2bytes：55AA 
+						
+				
+GRUB：
+					
+     bootloader：1st stage
+					
+     Partition：filesystem driver, 1.5 stage
+			     
+     Partition：/boot/grub, 2nd stage
+
+						
+				
+注意：UEFI，GPT
+			
+			
+  Kernel：
+				
+    自身初始化：
+					
+    探测可识别到的所有硬件设备；
+					     
+    加载硬件驱动程序；（有可能会借助于ramdisk加载驱动）
+					
+    以只读方式挂载根文件系统；
+					
+    运行用户空间的第一个应用程序：/sbin/init
+
+					
+				
+init程序的类型：
+					
+   CentOS 5-：SysV init
+	 配置文件：/etc/inittab 
+						
+					
+   CentOS 6： Upstart
+	 配置文件：/etc/inittab（只负责设置默认运行级别）
+，/etc/init/*.conf
+（具体的配置文件）						
+		
+   CentOS 7： Systemd
+	 配置文件：/usr/lib/systemd/system/, /etc/systemd/system/
+						
+				
+ramdisk：
+					
+			   
+   Linux内核的特性之一：使用缓冲和缓存来加速对磁盘上的文件访问；
+					
+						
+   ramdisk --> ramfs
+						
+						
+
+CentOS 5: initrd
+						  
+   工具程序：mkinitrd
+						
+CentOS 6,7: initramfs
+	
+   工具程序：dracut, mkinitrd
+
+							
+			
+系统初始化流程（内核级别）： POST --> BootSequence(BIOS) --> BootLoader（MBR）--> Kernel（ramdisk）--> rootfs（readonly）--> /sbin/init ()
+
+ 
+/sbin/init：
+			
+			
+CentOS 5： SysV init
+				
+				
+ 运行级别：为了系统的运行或维护等目的而设定的机制；
+					
+ 0-6：7个级别；
+						
+ 0：关机, shutdown
+				 
+ 1：单用户模式(single user)，root用户，无须认证；维护模式；
+						
+ 2、多用户模式(multi user)，会启动网络功能，但不会启动NFS；维护模式；
+						
+ 3、多用户模式(mutli user)，完全功能模式；文本界面；
+						
+ 4、预留级别：目前无特别使用目的，但习惯以同3级别功能使用；
+						
+ 5、多用户模式(multi user)， 完全功能模式，图形界面；
+			 
+ 6、重启，reboot
+						
+					
+ 默认级别：3, 5
+					
+					
+ 
+级别切换：
+    init #
+					
+					
+级别查看：
+			  
+    who -r
+						
+    runlevel 
+						
+				
+配置文件：/etc/inittab 
+
+
+
+13-2		
+每行定义一种action以及与之对应的process
+						
+id:runlevels:action:process 
+							
+        id：一个任务
+        runlevels：在哪些级别启动此任务；#，###，也可以为空，表示所有级别；
+					
+        action：在什么条件下启动此任务；
+							
+        process：任务；
+							
+						
+action：
+		
+     wait：等待切换至此任务所在的级别时执行一次；
+							
+     respawn：一旦此任务终止，就自动重新启动之；
+							
+     initdefault：设定默认运行级别；此时，process省略；
+							
+     sysinit：设定系统初始化方式，此处一般为指定/etc/rc.d/rc.sysinit脚本；
+							
+						
+例如：
+							
+id:3:initdefault: 
+							
+si::sysinit:/etc/rc.d/rc.sysinit
+							
+							
+l0:0:wait:/etc/rc.d/rc  0
+（/etc/rc.d/rc自身也是一个脚本，这句命令表示把0当参数传递给/etc/rc.d/rc）							
+l1:1:wait:/etc/rc.d/rc  1
+							
+…………
+			
+l6:6:wait:/etc/rc.d/rc  6
+								
+补充说明：
+[root@node4 ~]# ll /etc/rc.d/ 
+total 60
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 init.d
+-rwxr-xr-x. 1 root root  2617 Nov 23  2013 rc
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 rc0.d
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 rc1.d
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 rc2.d
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 rc3.d
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 rc4.d
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 rc5.d
+drwxr-xr-x. 2 root root  4096 Aug  5 05:07 rc6.d
+-rwxr-xr-x. 1 root root   220 Nov 23  2013 rc.local
+-rwxr-xr-x. 1 root root 19688 Nov 23  2013 rc.sysinit 系统初始化脚本文件
+
+意味着去启动或关闭/etc/rc.d/rc#.d/目录下的服务  脚本所控制服务；
+									
+  K*：要停止的服务；K##*，优先级，数字越小，越是优先关闭；依赖的服务先关闭，而后关闭被依赖的；
+									
+  S*：要启动的服务；S##*，优先级，数字越小，越是优先启动；被依赖的服务先启动，而依赖的服务后启动；
+								
+
+/etc/rc.d/rc脚本：
+   接受一个运行级别数字为参数；
+									
+							
+   脚本框架如下：
+										
+for  srv  in  /etc/rc.d/rc#.d/K*; do
+								     
+    $srv  stop
+										
+done
+							
+for  srv  in  /etc/rc.d/rc#.d/S*; do
+				     
+    $srv  start
+										
+done
+
+										
+									
+/etc/init.d/* （/etc/rc.d/init.d/*)脚本执行方式：
+										
+# /etc/init.d/SRV_SCRIPT  {start|stop|restart|status}
+				
+# service  SRV_SCRIPT   {start|stop|restart|status}
+						
+									
+chkconfig命令：管控/etc/init.d/每个服务脚本在各级别下的启动或关闭状态；
+										
+										
+查看：chkconfig  --list   [name]
+										
+							
+添加：chkconfig  --add    name
+										
+								
+删除：chkconfig  --del    name
+			
+能被添加的服务的脚本定义格式之一：
+												
+#!/bin/bash
+												
+#
+												
+# chkconfig: LLL  NN NN
+												
+# description:  		
+特别说明：
+   #与chkconfig，description之间有一个空格
+   LLL表示运行级别，-表示所有级别；第一个NN表示启动优先级数字；第二个NN表示关闭优先级数字
+										
+修改指定的链接类型：
+											
+chkconfig  [--level  LEVELS]  name  <on|off|reset>
+											  
+            --level LEVELS：指定要控制的级别；默认为2345；
+								
+						
+注意：正常级别下，最后启动的一个服务S99local没有链接至/etc/init.d下的某脚本，而是链接至了/etc/rc.d/rc.local （/etc/rc.local）脚本；
+因此，不便或不需写为服务脚本的程序期望能开机自动运行时，直接放置于此脚本文件中即可。
+								
+			
+tty1:2345:respawn:/usr/sbin/mingetty tty1
+							
+... ...
+							
+tty6:2345:respawn:/usr/sbin/mingetty tty6	
+							
+								
+（1）mingetty会调用login程序；
+								
+（2）打开虚拟终端的程序除了mingetty之外，还有诸如getty等；
+
+
+								
+					
+	
+系统初始化脚本：/etc/rc.d/rc.sysinit
+			 
+ (1) 设置主机名；
+							
+ (2) 设置欢迎信息；
+						 
+ (3) 激活udev和selinux；
+							
+ (4) 挂载/etc/fstab文件中定义的所有文件系统； --重要
+						 
+ (5) 检测根文件系统，并以读写方式重新挂载根文件系统；--重要 
+							
+ (6) 设置系统时钟； 
+						 
+ (7) 根据/etc/sysctl.conf文件来设置内核参数；
+--重要					
+ (8) 激活lvm及软raid设备；
+					
+ (9) 激活swap设备；
+--重要							
+ (10) 加载额外设备的驱动程序；
+							 
+ (11) 清理操作；
+ 
+								
+				
+总结（用户空间的启动流程）： 
+/sbin/init (/etc/inittab) 
+					
+设置默认运行级别 --> 运行系统初始化脚本，完成系统初始化（/etc/rc.d/rc.sysinit） --> 关闭对应级别下需要停止的服务，启动对应级别下需要开启的服务(/etc/rc.d/rc)
+                 --> 设置登录终端 [--> 启动图形终端]
+					
+			
+CentOS 6：
+				
+				
+  init程序：upstart，但依然为/sbin/init，/sbin/init的配置文件是：
+/etc/init/*.conf, /etc/inittab（仅用于定义默认运行级别）
+				
+  注意：*.conf为upstart风格的配置文件；
+							
+			  
+  比如：
+    rcS.conf
+						
+    rc.conf
+						
+    start-ttys.conf
+
+补充说明：
+[root@node4 ~]# ll /etc/init/
+total 68
+-rw-r--r--. 1 root root  412 Oct 10  2013 control-alt-delete.conf
+-rw-r--r--. 1 root root  130 Jun 25  2013 init-system-dbus.conf
+-rw-r--r--. 1 root root  463 Oct 10  2013 kexec-disable.conf
+-rw-r--r--. 1 root root  560 Oct 10  2013 plymouth-shutdown.conf
+-rw-r--r--. 1 root root  357 Oct 10  2013 prefdm.conf
+-rw-r--r--. 1 root root  505 Oct 10  2013 quit-plymouth.conf
+-rw-r--r--. 1 root root  417 Oct 10  2013 rc.conf
+-rw-r--r--. 1 root root 1046 Oct 10  2013 rcS.conf
+-rw-r--r--. 1 root root  430 Oct 10  2013 rcS-emergency.conf
+-rw-r--r--. 1 root root  725 Oct 10  2013 rcS-sulogin.conf
+-rw-r--r--. 1 root root 2915 Nov 23  2013 readahead-collector.conf
+-rw-r--r--. 1 root root 1559 Nov 23  2013 readahead.conf
+-rw-r--r--. 1 root root  726 Nov 23  2013 readahead-disable-services.conf
+-rw-r--r--. 1 root root 1302 Oct 10  2013 serial.conf
+-rw-r--r--. 1 root root  791 Oct 10  2013 splash-manager.conf
+-rw-r--r--. 1 root root  473 Oct 10  2013 start-ttys.conf
+-rw-r--r--. 1 root root  335 Oct 10  2013 tty.conf
+						
+			
+CentOS 7：
+				
+				
+   init程序：systemd，配置文件：/usr/lib/systemd/system/*, /etc/systemd/system/*
+				
+				
+   完全兼容SysV脚本机制；因此，service命令依然可用；不过，建议使用systemctl命令来控制服务；
+				
+					
+# systemctl  {start|stop|restart|status}  name[.service]
+					
+		
+
+
+13-3 
+博客作业：
+CentOS系统启动流程；
+		
+
+回顾：
+	
+	
+CentOS 6启动流程：
+		
+POST --> Boot Sequence(BIOS，按次序查找各引导设备) --> Boot Loader (MBR) --> Kernel(ramdisk) --> rootfs --> switchroot --> /sbin/init 
+     -->(/etc/inittab, /etc/init/*.conf) --> 设定默认运行级别 --> 系统初始化脚本 --> 关闭和启动对应级别下的服务 --> 启动登录界面
+
+grub: GRand Unified Bootloader
+		
+      grub 0.x: grub legacy
+		
+      grub 1.x: grub2
+
+	
+grub legacy:
+		
+  stage1: mbr
+		
+  stage1_5: mbr之后的扇区，让stage1中的bootloader能识别stage2所在的分区上的文件系统；
+		
+  stage2：磁盘分区(/boot/grub/)
+
+
+stage2及内核等通常放置于一个基本磁盘分区；
+		
+配置文件：/boot/grub/grub.conf <-- /etc/grub.conf
+
+
+[root@node4 ~]# ll /etc/grub.conf 
+lrwxrwxrwx. 1 root root 22 May 15 06:11 /etc/grub.conf -> ../boot/grub/grub.conf
+		
+
+			
+ 功用：
+				
+  (1) 提供菜单、并提供交互式接口
+	
+      e: 编辑模式，用于编辑菜单；
+					
+      c: 命令模式，交互式接口；
+			
+  (2) 加载用户选择的内核或操作系统
+		
+      允许传递参数给内核
+--重要					
+      可隐藏此菜单
+				
+  (3) 为菜单提供了保护机制
+			      
+      为编辑菜单进行认证
+					
+      为启用内核或操作系统进行认证
+
+		
+如何识别设备：
+			
+ (hd#,#)
+			 
+  hd#: 磁盘编号，用数字表示；从0开始编号
+				
+  #: 分区编号，用数字表示; 从0开始编号
+
+				
+  比如(hd0,0)
+
+
+		
+grub的命令行接口
+			
+  help: 获取帮助列表
+			
+  help KEYWORD: 详细帮助信息
+			
+  find (hd#,#)/PATH/TO/SOMEFILE：
+			
+  root (hd#,#)
+	kernel /PATH/TO/KERNEL_FILE: 设定本次启动时用到的内核文件；额外还可以添加许多内核支持使用的cmdline参数；
+				
+例如：
+init=/path/to/init, selinux=0
+			
+initrd /PATH/TO/INITRAMFS_FILE: 设定为选定的内核提供额外文件的ramdisk；
+			
+boot: 引导启动选定的内核；
+
+
+			
+手动在grub命令行接口启动系统：
+				
+grub> root (hd#,#)
+	指明内核所在那个分区			
+grub> kernel /vmlinuz-VERSION-RELEASE ro root=/dev/DEVICE 
+				
+grub> initrd /initramfs-VERSION-RELEASE.img
+				
+grub> boot
+
+
+		
+配置文件：/boot/grub/grub.conf
+			
+配置项：
+				
+    default=#: 设定默认启动的菜单项；落单项(title)编号从0开始；
+			    
+    timeout=#：指定菜单项等待选项选择的时长；
+
+    splashimage=(hd#,#)/PATH/TO/XPM_PIC_FILE：指明菜单背景图片文件路径，即开机菜单图片			    
+    hiddenmnu：隐藏菜单；
+				
+    password [--md5] STRING: 菜单编辑认证；
+
+				
+    title TITLE：定义菜单项“标题”, 可出现多次；
+					
+       root (hd#,#)：grub查找stage2及kernel文件所在设备分区；为grub的“根”，同时指定了kernel文件所在的设备分区--理解这句话很重要; 
+					
+       kernel /PATH/TO/VMLINUZ_FILE [PARAMETERS]：启动的内核
+文件			
+       initrd /PATH/TO/INITRAMFS_FILE: 内核匹配的ramfs文件；
+					
+       password [--md5] STRING: 启动选定的内核或操作系统时进行认证；要用grub-md5-crypt命令来生成密码
+
+
+		
+进入单用户模式的方法：
+	
+   (1) 编辑grub菜单(选定要编辑的title，而后使用e命令); 
+			
+   (2) 在选定的kernel后附加
+1, s, S或single都可以；
+			   
+   (3) 在kernel所在行，键入“b”命令；
+
+		
+
+grub的两种安装方式：
+详细信息参考鸟哥基础篇619页
+交互模式
+   (1)grub
+				
+      grub> root (hd#,#)
+	选择含有grub目录的那个分区代号
+      grub> find /grub/statge1 不一定可以找到
+      grub> find /vimlinuz     不一定可以找到		
+      grub> setup (hd#)
+
+|(hd#，#)  将grub主程序安装在MBR或boot sector中
+
+，grub主程序指的就是stage1，如果已经确认statge1是有的那么这一步可以不执行
+      grub> quit 来离开grub安装界面
+  （2）grub-install [--root-directory=DIR]  /dev/DISK
+  
+   不管是交互模式还是直接命令行模式安装，安装完成后都要提供/etc/grub.conf配置文件，且配置文件和grub主程序要在同一个目录
+   		
+补充说明：
+      1）可以理解为grub-install
+命令是在安装与bootloader（此处的bootloader指的就是grub）程序相关的文件到你的设备上面去等待在启动时被读取，
+         但此时没有配置文件/etc/grub.conf，需要使用grub shell来安装grub主程序到MBR或boot sector中
+
+	
+			
+      2）--root-directory=DIR,那个DIR为实际的目录,使用grub-install
+命令默认会将grub所有的文件都复制到/boot/grub/来，如果想要复制到其他目录与设备区，就需要加该参数
+         比如设置--root-directory=/home，该命令就会在/home目录下生产/home/boot/grub/device.map。更加详细信息请参考鸟哥基础篇618页
+      3）/dev/DISK
+就是安装的设备代号
+	
+练习：
+			
+  1、新加硬盘，提供直接单独运行bash系统；
+     磁盘分区，分区1对应/boot，分区2对应/
+     mount  /dev/sda1 /mnt/boot  复制相应的内核和initramfs文件到该目录即可，并且按照grub且提供配置文件
+     mount /dev/sda2 /mnt/sysroot  复制/bin/sh和依赖文件到该目录即可
+     chroot /mnt/sysroot 只要能顺利切换过来且执行命令即可
+      
+  2、破坏本机grub stage1（也就是破坏MBR），而后在救援模式下，只需要安装	
+     dd if=/dev/zero of=/dev/sda bs=200 count=1  bs大小不能超过446，否则分区表也会破坏，分区表破坏后就恢复不了
+     救援模式下
+     chroot /mnt/system
+     grub-install /dev/sda即可		
+  3、为grub设置保护功能；
+
+
+
+	
+博客作业：
+grub应用；
+	
+
+Linux Kernel：
+    
+        
+CentOS启动流程：POST --> Bootloader(BIOS, MBR) --> Kernel(initrd) --> rootfs --> switch_root --> /sbin/init
+            
+root (hd0,0)
+            
+kernel 
+            
+initrd
+
+            
+        
+ldd命令：- print shared library dependencies
+，显示共享库      
+ldd [OPTION]... FILE...
+                
+	
+内核设计体系：单内核、微内核 
+		
+Linux：单内核设计，但充分借鉴了微内核体系的设计的优点；为内核引入了模块化机制；
+
+			
+内核的组成部分：
+				
+补充说明：
+[root@node4 boot]# file /boot/vmlinuz-2.6.32-431.el6.x86_64 
+/boot/vmlinuz-2.6.32-431.el6.x86_64: Linux kernel x86 boot executable bzImage, version 2.6.32-431.el6.x86_64 (mockbuil, RO-rootFS, swap_dev 0x3, Normal VGA
+		  kernel：内核核心，一般为bzImage格式，通常位于/boot目录，名称为vmlinuz-VERSION-release；
+	  
+                  kernel object：内核对象，即内核模块，一般放置于/lib/modules/VERSION-release/
+					
+  内核模块与内核核心版本一定要严格匹配；
+				
+					
+   [   ]：N
+					
+   [M]：Module 
+					
+   [*]：Y，编译进内核核心
+
+					
+					
+内核：动态装载和卸载；
+					
+				
+ramdisk：辅助性文件，并非必须，这取决于内核是否能直接驱动rootfs所在的设备；
+					
+  目标设备驱动，例如SCSI设备的驱动；
+					
+  逻辑设备驱动，例如LVM设备的驱动；
+					
+  文件系统，例如xfs文件系统； 
+					
+					
+ramdisk：是一个简装版的根文件系统，里面主要包含了很多驱动程序
+					
+		
+内核信息获取：
+			
+uname命令：
+- print system information
+				
+				
+格式：uname [OPTION]...
+				             
+             -r：内核的release号
+					
+             -n：主机名 
+					
+				
+文件：/boot/vmlinuz-VERSION-release
+
+					
+		
+模块信息获取和管理：
+			
+			
+lsmod命令：
+- Show the status of modules in the Linux Kernel
+，显示的内核来自于/proc/modules
+				
+			
+modinfo命令：
+- Show information about a Linux Kernel module
+				
+				
+modinfo [-F field] [-k kernel] [modulename|filename...]
+					
+        -F field： 仅显示指定字段的信息；
+					
+        -n：显示文件路径；
+
+具体案例：
+[root@node4 boot]# lsmod |grep drbd
+drbd                  325882  0 
+libcrc32c               1246  1 drbd
+[root@node4 boot]# modinfo -n drbd
+/lib/modules/2.6.32-431.el6.x86_64/updates/drbd.ko
+
+					
+			
+modprobe命令：
+- Add and remove modules from the Linux Kernel
+				
+				
+   格式：modprobe  [-r]  module_name
+					
+   模块的动态装载：modprobe  module_name
+					
+   动态卸载：modprobe  -r  module_name
+					
+			
+depmod命令：
+- Generate modules.dep and map files.
+				
+		
+内核模块依赖关系文件的生成工具；
+
+				
+			
+模块的装载和卸载的另一组命令：（不常用，因为涉及到很多依赖关系）			
+insmod命令：
+					
+insmod  [filename]  [module options...]
+						
+        filename：模块文件的文件路径；
+					
+				
+rmmod命令：
+					
+   rmmod  [module_name]
+	
+
+				
+		
+ramdisk文件的管理：
+		
+  (1) mkinitrd命令
+				
+      为当前使用中的内核重新制作ramdisk文件：
+					
+      # mkinitrd [OPTION...] [<initrd-image>] <kernel-version>
+						
+           --with=<module>：除了默认的模块之外需要装载至initramfs中的模块；
+		   
+           --preload=<module>：initramfs所提供的模块需要预先装载的模块；
+					
+					
+      示例： ~]# mkinitrd  /boot/initramfs-$(uname -r).img   $(uname -r)
+			
+			
+  (2) dracut命令
+- low-level tool for generating an initramfs image
+					
+      # dracut [OPTION...] [<image> [<kernel version>]]
+					
+					
+      示例： ~]# dracut /boot/initramfs-$(uname -r).img  $(uname -r)
+					
+		
+内核信息输出的伪文件系统：
+    
+/proc：内核状态和统计信息的输出接口；
+    同时还提供一个配置接口，/proc/sys；
+				
+参数：
+			   
+  只读：信息输出；例如/proc/#/*
+					
+  可写：可接受用户指定一个“新值”来实现对内核某功能或特性的配置；/proc/sys/
+		
+  /proc/sys/net/ipv4/ip_forward相当于net.ipv4.ip_forward
+						
+						
+(1) sysctl命令
+：专用于查看或设定/proc/sys目录下参数的值； 
+								
+    sysctl [options]  [variable[=value]]
+									
+查看：
+										
+# sysctl  -a
+										
+# sysctl  variable(一个具体的参数，如net.ipv4.ip_forward
+）
+举例如下
+[root@node4 boot]# sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward = 0		
+						
+修改其值：
+										
+# sysctl  -w  variable=value
+				
+(2) 文件系统命令（cat, echo)
+							
+查看：
+								
+# cat  /proc/sys/PATH/TO/SOME_KERNEL_FILE
+							
+设定：
+								
+# echo  "VALUE" > /proc/sys/PATH/TO/SOME_KERNEL_FILE
+
+							
+						
+注意：上述两种方式的设定仅当前运行内核有效；
+						
+						
+(3) 配置文件：/etc/sysctl.conf和/etc/sysctl.d/*.conf 
+		    
+    立即生效的方式：sysctl  -p  [/PATH/TO/CONFIG_FILE]
+						
+
+内核参数：
+						
+    net.ipv4.ip_forward：核心转发；
+					    
+    vm.drop_caches：
+						
+    kernel.hostname：主机名；
+						    
+    net.ipv4.icmp_echo_ignore_all：忽略所有ping操作；
+						
+			
+/sys目录：
+				
+	    
+   sysfs：输出内核识别出的各硬件设备的相关属性信息，也有内核对硬件特性的可设置参数；对此些参数的修改，即可定制硬件设备工作特性；
+				
+	   
+   udev：通过读取/sys目录下的硬件设备信息按需为各硬件设备创建设备文件；udev是用户空间程序；专用工具：devadmin, hotplug；
+				
+	
+         udev为设备创建设备文件时，会读取其事先定义好的规则文件，一般在/etc/udev/rules.d/目录下，以及/usr/lib/udev/rules.d/目录下；
+
+14-1
+回顾：
+内核
+	
+	
+内核的组成部分：kernel文件+kernel object（即内核模块）+ramdisk
+		
+    kernel:        
+        uname
+		
+    kernel object: lsmod, modinfo, modprobe, insmod, rmmod, depmod 
+		
+    ramdisk：mkinitrd, dracut
+
+		
+	
+启动流程： POST --> BootSequence(BIOS) --> Bootloader (MBR) --> kernel (ramdisk) --> rootfs (switch_root) 
+                --> /sbin/init (/etc/inittab, /etc/init/*.conf, /usr/lib/systemd/system/)--> 默认运行级别、系统初始化、关闭及启动服务、启动终端（图形终端）
+
+
+grub：
+		
+  1st stage：mbr 
+		
+  1_5 stage: mbr之后的扇区 
+		
+  2nd stage：/boot/grub/
+			
+		
+加密：编辑、内核
+	
+
+编译内核：
+	
+	
+   程序包的编译安装：
+		
+  ./configure, make, make install
+	  
+前提：开发环境（开发工具，开发库），头文件：/usr/include 
+	
+	
+  开源：源代码 --> 可执行格式
+		
+  发行版：以“通用”的目标；
+		
+	
+前提：
+		
+  (1) 准备好开发环境；
+		
+  (2) 获取目标主机上硬件设备的相关信息；
+		
+  (3) 获取到目标主机系统功能的相关信息，例如要启用的文件系统； 
+	  
+  (4) 获取内核源代码包：www.kernel.org
+		
+		
+准备开发环境：
+			
+  CentOS 6/7：包组（Development Tools
+，Server Platform Development） 
+			    					
+				
+  图形安装界面需要的包：
+					
+           yum install -y  ncurses-devel
+					
+		
+获取目标主机上硬件设备的相关信息：
+			
+ CPU：
+				
+~]# cat  /proc/info
+				
+~]# lscpu
+				
+~]# x86info -a
+				
+			
+PCI设备：外设部件互连标准
+				
+~]# lspci
+					
+     -v
+		     
+     -vv
+					
+				
+~]# lsusb
+					
+      -v
+			      
+      -vv
+					
+				
+~]# lsblk
+				
+			
+了解全部硬件设备信息：
+				
+~]# hal-device
+	
+			
+		
+内核编译详细过程： 
+   yum groupinstall Development Tools
+  -y 
+   yum groupinstall Server Platform Development -y 
+   yum install kernel-devel -y 
+   yum install ncurses-devel -y 
+   到www.kernel.org下载linux-2.6.39.tar.bz2
+   tar -jxf linux-2.6.39.tar.bz2  -C /usr/src/kernels/
+   cd /usr/src/kernels/
+   ln  -sv linux-2.6.39  2.6.39
+   cd 2.6.39 
+   make menuconfig
+   在弹出的图形界面中配置做如下操作
+
+      General setup  --->
+      Local version - append to kernel release
+      输入-1.el6.chenhao 
+      保存退出
+   ls  .config   查看该文件是否生成，make menuconfig的主要目的就是生成该.config文件
+   make bzImage  先编译内核，注意bzImage的第3个字母是大写，需要花费很长时间
+      .......
+      Kernel: arch/x86/boot/bzImage is ready  (#1)---重点是这句话
+      [root@localhost 2.6.39]# ll arch/x86/boot/bzImage  验证bzImage是否已经生成
+      -rw-r--r-- 1 root root 3931712 Aug  6 06:10 arch/x86/boot/bzImage
+   make moduels  再编译模块			
+   make modules_install
+ 安装模块			
+   make install
+	  安装内核
+   重启系统，选择使用新内核
+补充说明：
+   [   ]：N
+					
+   [M]：Module 
+					
+   [*]：Y，编译进内核核心
+
+
+			
+			
+screen命令：在同一个终端下打开多个屏幕，即使原终端断开重新连上后，打开的屏幕依然在
+screen安装：
+   yum install -y screen				
+打开screen： 
+   ~]# screen
+暂时离开screen：
+    Ctrl+a, d   就是按住 Ctrl+a，然后迅速按d键
+具体操作案例：
+[root@node4 Downloads]# screen  -ls 
+There is a screen on:
+	10293.pts-1.node4	(Detached)
+1 Socket in /var/run/screen/S-root.
+[root@node4 Downloads]# screen   -r 10293	
+]# screen  -ls	列出screen	
+]# screen  -r   SCREEN_ID	连接至screen	
+]# exit        关闭screen,也就是删除screen
+在主tty中执行如下命令，可以关闭处于Detached的screen
+[root@localhost ~]# screen -ls
+There are screens on:
+        9975.pts-0.localhost    (Detached)
+        4588.pts-3.localhost    (Detached)
+2 Sockets in /var/run/screen/S-root.
+[root@localhost ~]# screen -X -S 4588 quit
+[root@localhost ~]# screen -ls
+There is a screen on:
+        9975.pts-0.localhost    (Detached)
+1 Socket in /var/run/screen/S-root.
+		
+		
+过程的详细说明：
+			
+(1)  配置内核选项
+				
+    支持“更新”模式进行配置：在已有的.config文件的基础之上进行“修改”配置；
+					
+   (a) make config：基于命令行以遍历的方式去配置内核中可配置的每个选项；
+	
+   (b) make  menuconfig：基于cureses的文本配置窗口（需要先安装ncurses-devel）；
+					
+   (c) make  gconfig：基于GTK开发环境的窗口界面；包组“桌面平台开发”
+					
+   (d) make  xonfig：基于QT开发环境的窗口界面；
+				
+    支持“全新配置”模式进行配置：
+		   
+   (a) make  defconfig：基于内核为目标平台提供的“默认”配置为模板进行配置；
+					
+   (b) make  allnoconfig：所有选项均为“no”；
+					
+			
+(2) 编译
+				 
+				 
+   (a) 多线程编译：make  [-j #]
+				
+   (b) 编译内核中的一部分代码：
+					
+        (i) 只编译某子目录中的相关代码：
+						
+        # cd  /usr/src/linux
+						
+        # make  path/to/dir/
+						
+					
+        (ii)只编译一个特定的模块
+					
+        # cd  /usr/src/linux
+						
+        # make  path/to/dir/file.ko
+				
+   (c) 如何交叉编译：
+					
+       目标平台与当前编译操作所在的平台不同；
+					
+					
+        # make  ARCH=arch_name
+					
+					
+       要获取特定目标平台的使用帮助：					
+						
+       # make  ARCH=arch_name help
+						
+			
+(3) 如何在执行过编译操作的内核源码树上做重新编译：
+				
+       事先清理操作：
+					
+       # make clean：     清理编译生成的绝大多数文件，但会保留config，及编译外部模块所需要的文件；
+					
+       # make mrproper：  清理编译生成的所有文件，包括配置生成的config文件及某些备份文件；
+					
+       # make distclean： 相当于mrproper，额外清理各种patches以及编辑器备份文件；
+					
+
+
+
+14-2，本视频主要讲解了centos7的交互式安装过程
+CentOS 系统安装：
+	
+	
+安装程序：anaconda
+	
+		
+bootloader --> kernel(initrd(rootfs)) --> anaconda
+(anaconda只是一个应用程序，必须要在kernel启动后才能运行）		
+		
+anaconda：
+			
+     tui：基于cureses的文本配置窗口
+			
+     gui：图形界面
+			
+		
+CentOS的安装过程启动流程：
+			
+     MBR：boot.cat
+(是光盘的引导加载器，在ISO镜像文件里面）			
+     Stage2：isolinux/isolinux.bin
+ (在ISO镜像文件里面）				
+     配置文件：isolinux/isolinux.cfg
+
+				
+				
+每个对应的菜单选项：
+					
+    加载内核：isolinux/vmlinuz
+	
+    向内核传递参数：append  initrd=initrd.img
+					
+				
+    装载根文件系统，并启动anaconda
+（anaconda的默认界面是图形界面：512MB+内存空间；
+若需要显式指定启动TUI接口：向启动内核传递一个参数"text"即可；）
+					
+						
+在grub的启动界面敲ESC键出现boot提示符，然后输入 linux text，此处的linux对应的是label						
+boot: linux  text
+
+less isolinux/isolinux.cfg
+
+label linux
+  menu label Install or upgrade an existing system
+  menu default
+  kernel vmlinuz
+  append initrd=initrd.img
+label vesa
+  menu label Install system with basic video driver
+  kernel vmlinuz
+  append initrd=initrd.img xdriver=vesa nomodeset
+
+补充说明：
+  centos6的ISO镜像光盘可以只有isolinux目录，其余需要的东西可以通过特定的程序包获得		
+				 
+				 
+  注意：上述内容一般位于引导设备，例如可通过光盘、U盘或网络等；后续的anacona及其安装用到的程序包等可以来自于程序包仓库，此仓库的位置可以为：
+					
+        本地光盘
+					
+        本地硬盘
+					
+        ftp server
+					
+        http server
+					
+        nfs server
+
+					
+					
+如果想手动指定安装仓库：
+						
+敲ESC键
+							
+boot: linux method
+
+
+							
+		
+anaconda的工作过程：
+			
+安装前配置阶段
+				
+   安装过程使用的语言；
+				
+   键盘类型
+				
+   安装目标存储设备
+			      
+      Basic Storage：本地磁盘
+					
+      Special Storage： iSCSI
+				
+  设定主机名
+				
+  配置网络接口
+				
+  时区
+				
+  管理员密码
+				
+  设定分区方式及MBR的安装位置；
+				
+  创建一个普通用户；
+				
+  选定要安装的程序包；
+			
+安装阶段
+				
+  在目标磁盘创建分区并执行格式化；
+		  
+  将选定的程序包安装至目标位置；
+				
+  安装bootloader；
+			
+首次启动
+				
+  iptables
+	  
+  selinux
+				
+  core dump 核心转存				
+		
+
+
+补充说明:
+    不能把/boot分区放在lvm上，因为grub驱动不了lvm
+anaconda的配置方式：
+			
+  (1) 交互式配置方式---就是普通的安装方式 
+			
+  (2) 支持通过读取配置文件中事先定义好的配置项自动完成配置；
+      遵循特定的语法格式，此文件即为kickstart文件，kickstart文件不应该放在硬盘里面，比如可以放在本网络的一台服务器上
+
+			
+		
+grub界面的安装引导选项：---重要
+	
+             包括接下来的ks也是一个安装引导选项		
+             boot:
+				
+                text：文本安装方式
+				
+                method：手动指定使用的安装方法，即需要到的yum仓库				      
+                与网络相关的引导选项：
+					
+                   ip=IPADDR
+					
+                   netmask=MASK
+					
+                   gateway=GW
+		     
+                   dns=DNS_SERVER_IP
+				
+                远程访问功能相关的引导选项：
+					
+                   vnc
+（anaconda带有vnc功能）				     
+                   vncpassword='PASSWORD'
+				
+                启动紧急救援模式：
+					
+                   rescue
+				
+                装载额外驱动：
+
+                   dd（driver disk）
+				
+参考官方文档：www.redhat.com/docs , 《installation guide》
+	
+	
+14-3，本视频主要讲解centos6的交互式安装过程和anaconda的自动安装过程
+
+CentOS系统安装：
+bootloader(配置文件isolinux/isolinux.cfg）
+ --> isolinux/vmlinuz (isolinux/initrd.img) --> anaconda程序
+-->anaconda程序去读取他的配置文件kickstar
+
+anaconda
+安装前配置阶段
+			     
+     交互式配置
+						
+     配置文件（自动配置）
+					
+     安装阶段
+			     
+     首次启动
+					
+
+CentOS系统安装：
+	
+	
+     CentOS 6.7的安装 x86_64: 
+minimal install
+		
+	
+grub界面安装引导选项：
+ks只是其中的一个著名选项，告诉anaconda如何运作		
+     ks：指明kickstart文件的位置；
+			
+         DVD drive类型      ks=cdrom:/PATH/TO/KICKSTART_FILE
+			     
+         Hard Drive类型     ks=hd:/DEVICE/PATH/TO/KICKSTART_FILE
+				
+         HTTP Server类型    ks=http://HOST[:PORT]/PATH/TO/KICKSTART_FILE
+			     
+         FTP Server类型     ks=ftp://HOST[:PORT]/PATH/TO/KICKSTART_FILE
+				
+         HTTPS Server类型   ks=https://HOST[:PORT]/PATH/TO/KICKSTART_FILE
+		
+	
+
+kickstart文件的格式
+		
+命令段：
+			
+     指定各种安装前配置选项，如键盘类型等；
+				
+     必备命令
+				     
+     可选命令
+		
+程序包段：
+			
+     指明要安装程序包，以及包组，也包括不安装的程序包；
+				
+     %packages
+			     
+     @group_name
+ 安装的包组 				
+     package
+  安装的程序包				
+     -package
+ 不安装的程序包				
+     %end
+		
+脚本段：
+			    
+    %pre：安装前脚本
+				
+    运行环境：运行安装介质上的微型Linux系统环境；
+			
+			
+    %post：安装后脚本
+		    
+    运行环境：安装完成的系统；
+
+				
+				
+		
+命令段中的必备命令：
+			        
+        authconfig：认证方式配置
+				
+             authconfig  --enableshadow  --passalgo=sha512
+			
+        bootloader：定义bootloader的安装位置及相关配置
+		
+             bootloader  --location=mbr  --driveorder=sda（磁盘驱动顺序）  --append="crashkernel=auto rhgb quiet"
+（传递给内核的参数）			
+        keyboard：设置键盘类型
+				
+             keyboard us
+			
+        lang：语言类型
+				
+             lang  zh_CN.UTF-8
+
+             lang  en_US.UTF-8（两者二选一，UTF-8表示编码格式）		
+        part：分区布局；
+				        
+             part  /boot  --fstype=ext4  --size=500
+				
+             part  pv.008002  --size=51200
+      表示创建的是物理卷			
+        rootpw：管理员密码
+				
+             rootpw  --iscrypted  $6$4Yh15kMGDWOPtbbW$SGax4DsZwDAz4201.O97WvaqVJfHcISsSQEokZH054juNnoBmO/rmmA7H8ZsD08.fM.Z3Br/67Uffod1ZbE0s.
+			
+        timezone：时区
+			
+             timezone --utc Asia/Shanghai
+				
+			
+补充：
+  1）命令段中与分区相关的其它指令
+				
+      clearpart：清除分区
+	      
+                 clearpart  --none  --drives=sda：清空磁盘分区；
+				
+      volgroup：创建卷组
+					      
+                volgroup  myvg  --pesize=4096  pv.008002
+				
+      logvol：创建逻辑卷
+					
+              logvol  /home  --fstype=ext4  --name=lv_home  --vgname=myvg  --size=5120
+					
+				
+      生成加密密码的方式：
+					
+              ~]# openssl  passwd  -1  -salt $(openssl rand -hex 4)
+		
+	
+             或者openssl rand -base64 10 
+  2）命令段中的可选命令：
+			
+      install或者upgrade：安装或升级；
+			  
+      text：安装界面类型，text为tui，默认为GUI
+			
+      network：配置网络接口
+				
+               network  --onboot on  --device eth0  --bootproto dhcp  --noipv6
+			
+      firewall：防火墙 
+				
+               firewall  --disabled
+ 关闭防火墙		
+      selinux：SELinux
+				
+               selinux --disabled
+			
+      halt、poweroff或reboot：安装完成之后的行为；
+			
+      repo：指明安装时使用的repository；
+				  
+            repo  --name="CentOS"   --baseurl=cdrom:sr0  --cost=100
+			
+      url： 指明安装时使用的repository，但为url格式；
+				
+            url --url=http://172.16.0.1/cobbler/ks_mirror/CentOS-6.7-x86_64/   
+（repo和url二选一就可以了，如果两者同时存在，rul的优先级更好，这意味着网卡要配置好，确保能访问对应的服务器）
+
+						
+			
+系统安装完成之后禁用防火墙：
+				
+ CentOS 6：
+					
+   # service iptables  stop
+					
+   # chkconfig  iptables  off 
+				
+ CentOS 7：
+					
+  # systemctl  stop  firewalld.service 
+					
+  # systemctl  disable  firewalld.service
+					
+			
+系统安装完成后禁用SELinux：
+				
+  编辑/etc/sysconfig/selinux或/etc/selinux/config文件，修改SELINUX参数的值为为permissive或者disabled
+					
+				
+立即生效：
+					
+        # getenforce
+ 					
+        # setenforce  0
+	（0对应disabled
+）
+
+		
+		
+定制kickstart文件：
+			
+    # yum install  system-config-kickstart
+			
+    # system-config-kickstart
+			
+			
+检查语法错误：
+			
+    # ksvalidator
+  ks.cfg 	
+	
+创建只有引导程序的光盘镜像：知道怎么写就可以了
+	
+  把isoliunx目录复制到myboot
+  要切换到myboot目录外	
+~]# mkisofs -R -J -T -v --no-emul-boot --boot-load-size 4 --boot-info-table -V "CentOS 6 x86_64 boot" -c isolinux/boot.cat 
+            -b isolinux/isolinux.bin -o  /root/boot.iso   myboot/
+
+		
+
+
+
+有一个疑问就是，安装完成后的新系统的内核是怎么来的？？
+使用kickstart安装centos6.5 64位系统的详细操作步骤（两种安装方式）
+一、手动安装方式
+   192.168.139.171服务器具体操作步骤：
+      1）yum install  system-config-kickstart -y
+      2）利用system-config-kickstart配置好kickstart文件
+         关键配置就在安装方法那里，
+         比如安装源选择HTTP（注意此处填写的安装程序包所在的位置）
+         比如地址是http://192.168.139.171/anaconda/（对应repodata所在目录）
+         则HTTP服务器填写192.168.139.171，HTTP目录填写/anaconda/，对应生成的文本中的选项就是--url
+         保存退出
+     3）cp /root/ks.cfg  /var/www/html/
+     4）mount /dev/cdrom /mnt (把centos6.5 64位的镜像文件挂载上来）
+     5）mkdir /var/www/html/anaconda 
+     6）cp -r /mnt/*  /var/www/html/anaconda
+   在一个新虚拟机的操作步骤：
+        1）创建一个新的虚拟机，并挂载上centos6.5 64位的镜像文件，启动虚拟机
+        2）注意事项，新虚拟机内存选择默认的1024M，不要改小内存，否则会出现各种错误，导致安装不成功
+        2）在grub界面敲ESC键
+        3) boot: linux ip=192.168.139.100 netmask=255.255.255.0  ks=http://192.168.139.171/ks.cfg 
+
+二、创建镜像文件，同时给内核传递ks选项的全自动安装方式
+    192.168.139.171服务器具体操作步骤：
+      1）yum install  system-config-kickstart -y
+      2）利用system-config-kickstart配置好kickstart文件
+         关键配置就在安装方法那里，
+         比如安装源选择HTTP（注意此处填写的安装程序包所在的位置）
+         比如地址是http://192.168.139.171/anaconda/（对应repodata所在目录）
+         则HTTP服务器填写192.168.139.171，HTTP目录填写/anaconda/，对应生成的文本中的选项就是--url
+         保存退出  
+      3）mkdir /root/myiso 
+      4) cp /root/ks.cfg  /root/myiso
+      5) mount /dev/cdrom /mnt (把centos6.5 64位的镜像文件挂载上来）
+      6) cp -r /mnt/isolinux  /root/myiso (做引导光盘时，只需要isolinux目录即可）
+      7) cd /root/myiso/isolinux
+      8) chmod u+w isolinux.cfg 
+      9) vim isolinux.cfg 
+menu background splash.jpg
+menu title Welcome to CentOS 6.5 chenhao!---自己修改
+menu color border 0 #ffffffff #00000000
+menu color sel 7 #ffffffff #ff000000
+menu color title 0 #ffffffff #00000000
+menu color tabmsg 0 #ffffffff #00000000
+menu color unsel 0 #ffffffff #00000000
+menu color hotsel 0 #ff000000 #ffffffff
+menu color hotkey 7 #ffffffff #ff000000
+menu color scrollbar 0 #ffffffff #00000000
+
+label linux
+  menu label Install test for anaconda
+  menu default
+  kernel vmlinuz
+  append initrd=initrd.img  ks=cdrom:/ks.cfg（把ks选项传递个内核，无需再手动输入） 
+
+      10）cd /root(要退出到myiso的父目录）
+      11) mkisofs -R -J -T -v --no-emul-boot --boot-load-size 4 --boot-info-table -V "CentOS 6.5 x86_64 boot" -c isolinux/boot.cat 
+                  -b isolinux/isolinux.bin -o  /root/boot.iso   myiso/
+
+      12)查看/root/boot.iso是否已经生成
+   在一个新虚拟机的操作步骤：
+        1）创建一个新的虚拟机，并挂载上制作好的boot.iso镜像文件，启动虚拟机
+        2）注意事项，新虚拟机内存选择默认的1024M，不要改小内存，否则会出现各种错误，导致安装不成功
+
+
+
+
+14-4		
+						
+
+Sysmted：
+	
+	
+   POST --> Boot Sequeue(BIOS) --> Bootloader(MBR) --> Kernel(ramdisk) --> rootfs --> /sbin/init
+		
+init：
+			
+ CentOS 5: SysV 			
+ CentOS 6：Upstart
+			
+ CentOS 7：Systemd
+			
+		
+Systemd的新特性：
+			
+  系统引导时实现服务并行启动；
+			
+  按需激活进程；
+			
+  系统状态快照；
+			
+  基于依赖关系定义服务控制逻辑；
+			
+		
+
+
+核心概念：unit
+			
+  unit由其相关配置文件进行标识、识别和配置；
+  文件中主要包含了系统服务、监听的socket、保存的快照以及其它与init相关的信息； 这些配置文件主要保存在如下三个文件：
+				
+     /usr/lib/systemd/system
+				
+    /run/systemd/system
+			
+    /etc/systemd/system
+			
+		
+unit的常见类型：
+			
+  Service unit：文件扩展名为.service，用于定义系统服务；
+		  
+  Target unit：文件扩展为.target，用于模拟实现“运行级别”；
+			
+  Device unit： .device，用于定义内核识别的设备；
+			
+  Mount unit：  .mount，定义文件系统挂载点；
+			
+  Socket unit： .socket，用于标识进程间通信用到的socket文件；
+			
+  Snapshot unit： .snapshot， 管理系统快照；
+			
+  Swap unit： .swap, 用于标识swap设备；
+			
+  Automount unit： .automount，文件系统自动点设备；
+			
+  Path unit： .path, 用于定义文件系统中的一文件或目录；
+			
+		
+关键特性：
+			
+  基于socket的激活机制：socket与程序分离；
+		  
+  基于bus的激活机制；
+			
+  基于device的激活机制；
+			
+  基于Path的激活机制；
+			
+  系统快照：保存各unit的当前状态信息于持久存储设备中；
+			
+  向后兼容sysv init脚本；
+				
+/etc/init.d/
+				
+		
+ 不兼容：
+	
+  systemctl的命令是固定不变的；
+			
+  非由systemd启动的服务，systemctl无法与之通信；
+			
+		
+管理系统服务：
+			
+CentOS 7： service类型的unit文件；
+			
+				
+syscemctl命令：
+- Control the systemd system and service manager
+					
+					
+   systemctl  [OPTIONS...]  COMMAND  [NAME...]
+					
+						
+   启动： service  NAME  start  ==>  systemctl  start  NAME.service
+						
+   停止： service  NAME  stop  ==> systemctl  stop  NAME.service
+						
+   重启： service  NAME  restart  ==>  systemctl  restart  NAME.service
+	   
+   状态： service  NAME  status  ==>  systemctl  status  NAME.service
+						
+   条件式重启：service  NAME  condrestart  ==>  systemctl  try-restart  NAME.service
+						
+   重载或重启服务： systemctl  reload-or-restart  NAME.servcie
+						
+   重载或条件式重启服务：systemctl  reload-or-try-restart  NAME.service
+						
+						
+   查看某服务当前激活与否的状态： systemctl  is-active  NAME.service
+						
+   查看所有已激活的服务：systemctl  list-units  -t  service
+						
+   查看所有服务（已激活和未激活）: chkconfig --lsit  ==>  systemctl  list-units  -t  service  --all 
+						
+			   
+   设置服务开机自启： chkconfig  NAME  on  ==>  systemctl  enable  NAME.service
+						
+   禁止服务开机自启： chkconfig  NAME  off  ==>  systemctl  disable  NAME.service 
+			   
+   查看某服务是否能开机自启： chkconfig  --list  NAME  ==>  systemctl  is-enabled  NAME.service
+						
+	   
+   禁止某服务设定为开机自启： systemctl  mask  NAME.service
+						
+   取消此禁止： systemctl  unmask  NAME.servcie
+						
+						
+   查看服务的依赖关系：systemctl  list-dependencies  NAME.service
+
+
+						
+		
+管理target units：
+			
+			
+运行级别：
+				
+        0  ==>  runlevel0.target,  poweroff.target
+				
+        1  ==>  runlevel1.target,  rescue.target
+				
+        2  ==>  runlevel2.tartet,  multi-user.target
+				
+        3  ==>  runlevel3.tartet,  multi-user.target
+				
+        4  ==>  runlevel4.tartet,  multi-user.target
+				
+        5  ==>  runlevel5.target,  graphical.target
+				
+        6  ==>  runlevel6.target,  reboot.target
+				
+		
+级别切换：init  N  ==>  systemctl  isolate  NAME.target
+			
+			
+查看级别：runlevel  ==>  systemctl  list-units  -t  target
+			
+查看所有级别： systemctl  list-units  -t  target  -a
+			
+			
+获取默认运行级别：systemctl  get-default  
+			
+修改默认运行级别： systemctl  set-default   NAME.target
+			
+			
+切换至紧急救援模式： systemctl  rescue
+			
+切换至emergency模式： systemctl  emergency
+			
+		
+其它常用命令：
+	
+   关机： systemctl  halt,  systemctl  poweroff
+			
+   重启： systemctl  reboot
+			
+   挂起： systemctl  suspend
+			
+   快照： systemctl  hibernate 
+			
+   快照并挂起： systemctl  hybrid-sleep
+			
+		
+service unit file：
+			
+文件通常由三部分组成：
+				
+   [Unit]：定义与Unit类型无关的通用选项；用于提供unit的描述信息、unit行为及依赖关系等；
+				
+   [Service]：与特定类型相关的专用选项；此处为Service类型；
+				
+   [Install]：定义由“systemctl  enable”以及"systemctl  disable“命令在实现服务启用或禁用时用到的一些选项；
+
+				
+			
+Unit段的常用选项：
+				
+   Description：描述信息； 意义性描述；
+				
+   After：定义unit的启动次序；表示当前unit应该晚于哪些unit启动；其功能与Before相反；
+				
+   Requies：依赖到的其它units；强依赖，被依赖的units无法激活时，当前unit即无法激活；
+				
+   Wants：依赖到的其它units；弱依赖；
+				
+   Conflicts：定义units间的冲突关系；
+
+				
+			
+Service段的常用选项：
+	   
+   Type：用于定义影响ExecStart及相关参数的功能的unit进程启动类型；
+					
+         类型：
+						  
+             simple：
+						
+             forking：
+						
+             oneshot：
+						  
+             dbus：
+						
+             notify：
+						
+             idle：
+				
+   EnvironmentFile：环境配置文件；
+	  
+   ExecStart：指明启动unit要运行命令或脚本； 
+   ExecStartPre, ExecStartPost
+				
+   ExecStop：指明停止unit要运行的命令或脚本；
+	  
+   Restart：
+				
+			
+Install段的常用选项：
+				
+   Alias：
+				  
+   RequiredBy：被哪些units所依赖；
+				
+   WantedBy：被哪些units所依赖； 
+				
+		
+注意：对于新创建的unit文件或，修改了的unit文件，要通知systemd重载此配置文件；
+			
+# systemctl  daemon-reload
+			
+		
+练习：为当前系统的httpd服务提供一个unit文件；
+		
+
+
+
+
+
+				
+	
+在bash中使用ACSII颜色
+		
+ \033[31m hello \033[0m
+	 解释如下：
+    \033[31m表示后续字符使用什么颜色
+    \033[0m表示颜色结束（必须要加）
+
+ \033[##m （即左边部分）
+第一个#中
+，3表示前景色
+ ，4表示背景色
+				
+第二个#表示颜色种类
+，有1, 2, 3, 4, 5, 6, 7
+
+  \033[#m （即左边部分，也可以是单个数字）			
+			
+此时#表示加粗、闪烁等功能，有
+1, 2, 3, 4, 5, 6, 7
+
+
+多种控制符，可组合使用，彼此间用分号隔开；举例如下
+ echo -e "\033[31;42m hello \033[0m" （必须要加-e，-e表示启用反斜杠解释）
+ 上面这条命令表示前景为红色，背景为绿色
+
+ 
+
+			
+	
+ dialog命令可实现窗口化编程；（即创建出一个图形对话框，用的较少）
+		
+ 各窗体控件使用方式；
+		
+ 如何获取用户选择或键入的内容？
+			
+ 默认，其输出信息被定向到了错误输出流；
+
+		
+	
+《高级bash编程指南》，《Linux命令行和shell脚本编程宝典》
+，参考书籍	
+回顾：bash脚本编程数组
+
+	数组，字符串处理
+
+	
+数组：
+		
+     索引数组：declare -a 
+ index: 0-
+		
+     关联数组: declare -A
+
+	
+字符串处理：
+		
+     切片、查找替换、查找删除、变量赋值
+
+GNU 
+
+
+
+
+
+

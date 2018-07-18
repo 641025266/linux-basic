@@ -1,0 +1,971 @@
+﻿
+7-1
+Linux系统管理	
+   磁盘分区及文件系统管理
+   RAID
+   LVM	
+   网络属性管理	
+   程序包管理
+   sed and awk
+   进程查看和管理
+   内核管理(编译和安装）
+   系统启动流程
+   定制、编译内核、busybox
+   系统安装：kickstart，dhcp, pxe
+   shell脚本编程
+	
+Linux磁盘及文件系统管理
+   CPU， Memory(RAM), I/O
+   I/O: Disks, Ehtercard
+   Disks: 持久存储数据			
+   接口类型：
+   IDE(ata)：并口，133MB/s
+   SCSI：并口，Ultrascsi320, 320MB/S, UltraSCSI640, 640MB/S
+   SATA：串口，6gbps,英文是Serial Advanced Technology Attachment
+   SAS：串口，6gbps
+   1`1`USB：串口，480MB/s	
+   并口：同一线缆可以接多块设备；		
+              IDE：两个，主，从	
+              SCSI：宽带：16-1，窄带：8-1
+  串口：同一线缆只可以接一个设备；				
+        iops：io per second	   
+   硬盘：机械硬盘，固态硬盘；	
+         机械硬盘：
+            track：磁道			
+            sector：一个扇区是512bytes,	扇区是最小的物理存储单位				
+            cylinder：柱面，将扇区组成一个圆就是柱面；分区划分基于柱面,所谓的分区即是A柱面到B柱面之间的块，块的大小在格式化的时候可以指定					
+            平均寻道时间：5400rpm, 7200rpm, 10000rpm, 15000rpm
+Linux的哲学思想：一切皆文件；
+设备类型：
+   块(block)：随机访问，数据交换单位是“块”；		
+   字符(character)：线性访问，数据交换单位是“字符”；
+   设备文件：FHS
+      /dev 设备文件：关联至设备的驱动程序；设备的访问入口；				
+   设备号：major：主设备号，区分设备类型；用于标明设备所需要的驱动程序；
+   minor：次设备号，区分同种类型下的不同的设备；是特定设备的访问入口；
+   mknod命令：make block or character special files
+  创建设备文件												
+   mknod [OPTION]  FILENAME 设备种类  [MAJOR  MINOR]
+           option：							
+           -m, --mode=MODE 创建后的设备文件的访问权限；
+           设备种类：
+	   b，创建block设备文件，如硬盘
+           c，创建字符型设备文件
+           p，创建FIFO文件
+举例
+[root@node4 ~]# ll /dev/sd* 
+brw-rw---- 1 root disk 8,  0 Aug  4 02:10 /dev/sda
+brw-rw---- 1 root disk 8,  1 Aug  4 02:11 /dev/sda1
+brw-rw---- 1 root disk 8,  2 Aug  4 02:11 /dev/sda2
+brw-rw---- 1 root disk 8,  3 Aug  4 02:10 /dev/sda3
+brw-rw---- 1 root disk 8,  4 Aug  4 02:10 /dev/sda4
+brw-rw---- 1 root disk 8,  5 Aug  4 02:10 /dev/sda5
+brw-rw---- 1 root disk 8,  6 Aug  4 02:10 /dev/sda6
+brw-rw---- 1 root disk 8, 16 Aug  4 02:10 /dev/sdb
+[root@node4 ~]# mknod /dev/sda7  b  22 10
+   磁盘：
+    IDE： /dev/hd[a-z]					   
+   例如：/dev/hda, /dev/hdb		
+   SCSI, SATA, USB, SAS: /dev/sd[a-z]			
+   分区：
+  /dev/sda#：
+ /dev/sda1, ...				
+注意：CentOS 6和7统统将硬盘设备文件标识为/dev/sd[a-z]#						
+		
+引用设备的方式：				
+    设备文件名			
+    卷标				
+    UUID			
+磁盘分区：MBR， GPT	
+     MBR：0 sector （Master Boot Record）		
+MBR分为三部分：
+    446bytes：bootloader, 程序，引导启动操作系统的程序；				
+    64bytes：分区表，每16bytes标识一个分区，一共只能有4个分区；（3主1扩展，1个扩展分区可以划分成n逻辑分区）
+    2bytes：MBR区域的有效性标识；55AA为有效；
+补充说明：
+    一块磁盘有唯一的一个MBR，每一个分区又有自己的boot sector（引导扇区，大小为1024bytes），这是多重操作系统可以存在的原因--重要	
+    1K=1024bytes
+    1byte=8bits，byte称为字节
+    1word=2bytes，word称为字
+主分区和扩展分区的标识：1-4
+逻辑分区 ：5+
+课外作业：GPT和MBR的比较
+   1)单个分区支持：mbr最多支持2TB的单个分区，而gpt理论上是无限制的。
+     MBR最多支持2TB的单个分区原因是，MBR分区是将分区信息保存到磁盘的第一个扇区(MBR扇区)中的64个字节中，每个分区项占用16个字节，
+     这16个字节中存有活动状态标志、文件系统标识、起止柱面号、磁头号、扇区号、隐含扇区数目(4个字节)、分区总扇区数目(4个字节)等内容。
+     这种分区案用其中4个字节存储分区的总扇区数，最大能表示2的32次方的扇区个数，按每扇区512字节计算，每个分区最大不能超过2TB
+   2)分区：mbr最多支持四个主分区，gpt没有限制。如果你想跑多系统，mbr最多4个而gpt没有限制。
+   3)如果你的硬盘分区超过2T，那么你必须选择GPT+UEFI，2t以下就无所谓了；
+     各自对应关系是，BIOS+MBR----UEFI+GPT
+	
+fdisk命令：	
+1、查看磁盘的分区信息：		
+   fdisk -l [-u] [device...]：列出指定磁盘设备上的分区情况；
+2、管理分区
+   fdisk  device		
+fdisk提供了一个交互式接口来管理分区，它有许多子命令，分别用于不同的管理功能；所有的操作均在内存中完成，没有直接同步到磁盘；直到使用w命令保存至磁盘上；	
+常用命令：
+n：创建新分区		
+d：删除已有分区			
+t：修改分区类型			
+l：查看所有已经ID			
+w：保存  并退出
+q：不保存并退出			
+m：查看帮助信息			
+p：显示现有分区信息		
+注意：在已经分区并且已经挂载其中某个分区的磁盘设备上创建的新分区，内核可能在创建完成后无法直接识别；		
+查看：cat  /proc/partitions
+通知内核强制重读磁盘分区表：
+   CentOS 5：partprobe [device]		
+   CentOS 6,7：partx, kpartx
+      partx -a [device]			
+      kpartx -af [device]		
+分区创建工具： 
+      parted：fdisk无法支持高于2TB以上的分区，此时需要parted来分区，使用man parted查看使用帮助
+      sfdisk；
+   创建文件系统：	
+         格式化：低级格式化（分区之前进行，划分磁道）、高级格式化（分区之后对分区进行，创建文件系统）  
+   元数据区：
+        也就是inode，记录文件的属性，如inode大小、权限、属主属组、时间戳、数据块指针（记录此文件数据所在的block号码），
+        一个文件占用一个inode,Linux文件系统通过inode节点实现了文件的逻辑结构和物理结构的转换
+   数据区：实际记录文件的内容，若文件太大，会占用多个block				
+   设备文件：存储数据指针的空间当中存储的是设备号（major, minor）；
+补充说明：
+    鸟哥基础篇201页，inode大小是128bytes，但实际用dumpe2fs -h /dev/sda1查看时，Inode size是256。因此不同的系统可能有差别
+链接文件：访问同一个文件不同路径；
+
+案例:系统inode数量不够，一般是由于有很多小文件或者碎片文件导致的
+]# df -i
+Filesystem            Inodes   IUsed   IFree IUse% Mounted on
+/dev/vda1            1310720 1071447  239273   82% /
+tmpfs                 490369       1  490368    1% /dev/shm
+/dev/vdb             3932160   49222 3882938    2% /data
+]# for i in /*; do echo $i; find $i |wc -l|sort -nr; done      查看根路径下各个文件夹的文件数
+/usr
+113179
+/var
+924922
+....
+发现/var/spool/clientmqueue/下面的小文件很多
+]# for i in /var/spool/clientmqueue/; do echo $i; find $i |wc -l|sort -nr; done
+/var/spool/clientmqueue/
+916117
+]# cd /var/spool/clientmqueue/
+]# find . -name "*" | xargs rm -rf 
+rm: cannot remove directory: `.'  出现这个是正常现象
+
+硬链接创建：ln  src  link_file
+  指向同一个inode的多个文件名，可以理解为inode被多次引用（联想python
+  每一个文件都会占用一个inode，文件内容由inode的记录来指向
+  想要读取该文件，必须要经过目录记录的文件名来指向正确的inode号码才能读取。也就是说文件名只与目录有关，但是文件内容与inode有关。
+  hardlink只是在某个目录下新建一个文件名连接到某个inode号码的记录而已			
+  特性：
+  (1) 目录不支持硬链接；			
+  (2) 硬链接不能跨文件系统； 	
+  (3) 创建硬链接会增加inode引用计数；
+符号链接创建：ln -sv  src link_file，v表示verbose
+  指向一个文件路径的另一个文件路径；
+  特性：
+      (1) 符号链接文件与原文件是两人个各自独立的文件，各有自己的inode；
+     （2）对原文件创建符号链接不会增加inode引用计数；			
+      (3) 支持对目录创建符号链接，可以跨文件系统；
+      (4) 删除符号链接文件不影响原文件；但删除原文件，符号指定的路径即不存在，此时会变成无效链接；
+          注意：符号链接文件的大小是其指定的文件的路径符串的字节数；
+     （5）符号链接文件中，存储数据指针的空间当中存储的是真实文件的访问路径--仔细理解，非常重要
+				
+bitmap index：位图索引
+VFS: Virtual File System
+Linux的文件系统: 
+  ext2(无日志功能), ext3, ext4, xfs, reiserfs, btrfs	
+  光盘：iso9660
+  网络文件系统：nfs, cifs
+  集群文件系统：gfs2, ocfs2
+  内核级分布式文件系统：ceph
+  windows的文件系统：vfat, ntfs
+  伪文件系统：proc, sysfs, tmpfs, hugepagefs
+  Unix的文件系统：UFS， FFS， JFS
+  交换文件系统：swap
+用户空间的分布式文件系统：mogilefs, moosefs, glusterfs （一般文件系统都在内核区，此处说的分布式文件系统在用户区）		
+	
+文件系统管理工具：
+  创建文件系统的工具 mkfs，mkfs.ext2, mkfs.ext3, mkfs.ext4, mkfs.xfs, mkfs.vfat, ...	
+  检测及修复文件系统的工具 fsck,fsck.ext2, fsck.ext3, ...
+  查看其属性的工具dumpe2fs, tune2fs	
+  调整文件系统特性：tune2fs
+回顾：
+磁盘、磁盘分区、文件系统
+CentOS 6,7：/dev/sd[a-z]#
+管理分区：fdisk, parted, sfdisk
+创建文件系统：
+   Linux文件系统类型：ext2, ext3, ext4, xfs, reiserfs, iso9660, swap
+文件系统的组织结构中的术语：
+   block groups, block,inode（一般inode大小为128btyes，在格式化时就已经固定了inode的大小和数量）, 
+  （inode bitmap,inode table） （block bitmap, data block），superblock
+补充说明：
+   通过dumpe2fs -h device或者tune2fs -l device可以查看superblock内容，superblock内容里面包含block size和inode size
+磁盘和文件系统管理
+文件系统管理工具：
+创建文件系统的工具mkfs，mkfs.ext2, mkfs.ext3, mkfs.ext4, mkfs.xfs, mkfs.vfat, ...
+检测及修复文件系统的工具fsck，fsck.ext2, fsck.ext3, ...
+查看其属性的工具dumpe2fs, tune2fs
+调整文件系统特性：tune2fs	
+内核级文件系统的组成部分：
+   文件系统驱动：由内核提供
+   文件系统箮理工具：由用户空间的应用程序提供
+ext系列文件系统的管理工具：
+  mkfs.ext2, mkfs.ext3, mkfs.ext4
+  mkfs -t ext2 = mkfs.ext2
+ext系列文件系统专用管理工具：mke2fs
+  mke2fs [OPTIONS]  device
+         -t {ext2|ext3|ext4}：指明要创建的文件系统类型					
+         -b {1024|2048|4096}：指明文件系统的块大小；（块是逻辑层面，扇区是物理层面，格式化的时候可以决定一个块是由2|4|8个扇区组成）				
+         -L LABEL：指明卷标；
+         -j：创建有日志功能的文件系统ext3；					
+         -i #：bytes-per-inode，指明inode与字节的比率；即每多少字节创建一个Inode; 
+         -N #：直接指明要给此文件系统创建的inode的数量；
+         -m #：指定预留的空间，
+         -O [^]FEATURE：以指定的特性创建目标文件系统； 
+列如：
+mkfs.ext4 = mkfs -t ext4 = mke2fs -t ext
+mke2fs -j = mke2fs -t ext3 = mkfs -t ext3 = mkfs.ext3			
+e2label命令：卷标的查看与设定（功能可以tune2fs替代）			
+  查看：e2label device	
+  设定：e2label device LABEL	
+tune2fs命令：查看或修改ext系列文件系统的某些属性 注意：块大小创建后不可修改；
+tune2fs [OPTIONS] device
+        -l：查看superblock的内容；				
+        -j：ext2 --> ext3，表示把ext2的文件系统转换为ext3文件系统						       
+        -L LABEL：修改卷标；		
+        -m #：调整预留空间百分比；			
+        -O [^]FEATHER：开启或关闭某种特性；
+        -o [^]mount_options：开启或关闭某种默认挂载选项
+dumpe2fs命令：显示ext系列文件系统的属性信息
+dumpe2fs  [-h] device  -h表示查看文件系统的superblock				
+用于实现文件系统检测的工具,因进程意外中止系统崩溃等 原因导致定稿操作非正常终止时，可能会造成文件损坏；此时，应该检测并修复文件系统；建议，离线进行； 
+ext系列文件系统的专用工具：
+e2fsck : check a Linux ext2/ext3/ext4 file system			
+e2fsck [OPTIONS]  device	
+        -y：对所有问题自动回答为yes; 				
+        -f：即使文件系统处于clean状态，也要强制进行检测；	
+fsck：check and repair a Linux file system
+      -t fstype：指明文件系统类型；		
+      fsck -t ext4 = fsck.ext4
+      -a：无须交互而自动修复所有错误；			
+      -r：交互式修复；		
+CentOS 6如何使用xfs文件系统：		
+# yum  -y  install  xfsprogs   base源里面有rpm包
+创建：mkfs.xfs 
+检测：fsck.xfs 		
+blkid命令：
+blkid device 主要用来获取文件系统信息
+  blkid  -L LABEL：根据LABEL定位设备
+  blkid  -U  UUID：根据UUID定位设备 
+swap文件系统：Linux上的交换分区必须使用独立的文件系统；且文件系统的System ID必须为82；
+创建swap设备：mkswap命令
+  mkswap [OPTIONS]  device	
+         -L LABEL：指明卷标	  
+         -f：强制
+Windows无法识别Linux的文件系统； 因此，存储设备需要两种系统之间交叉使用时，应该使用windows和Linux同时支持的文件系统：fat32(vfat); 
+# mkfs.vfat device
+		
+文件系统的使用：
+   首先要“挂载”：mount命令和umount命令   
+   根文件系统外的其它文件系统要想能够被访问，都必须通过“关联”至根文件系统上的某个目录来实现，此关联操作即为“挂载”；此目录即为“挂载点”；	   
+   挂载点：mount_point，用于作为另一个文件系统的访问入口；
+           (1) 事先存在；
+           (2) 应该使用未被或不会被其它进程使用到的目录；
+           (3) 挂载点下原有的文件将会被隐藏；
+mount命令：
+  mount  [-nrwLU]  [-t vfstype]  [-o options]  device  dir			
+  命令选项：					
+        -r：readonly，只读挂载； 	
+        -w：read and write, 读写挂载； 	
+        -n：默认情况下，设备挂载或卸载的操作会同步更新至/etc/mtab文件中；-n表示禁止此特性；	        
+        -t fstype：指明要挂载的设备上的文件系统的类型；多数情况下可省略，此时mount会通过blkid来判断要挂载的设备的文件系统类型；
+        -L LABEL：挂载时以卷标的方式指明设备；操作演示mount -L LABEL dir
+        -U UUID：挂载时以UUID的方式指明设备；操作演示mount -U UUID dir
+        -o options：挂载选项（多个挂载选项之间以逗号隔开）		    
+            sync/async：同步/异步操作的内存机制；		
+            atime/noatime：文件或目录在被访问时是否更新其访问时间戳；
+            diratime/nodiratime：目录在被访问时是否更新其访问时间戳；
+            remount：重新挂载； 
+举例：mount -o remount,rw / (重新挂载根文件系统，注意此时不需要指定设备--）				    
+            acl：支持使用facl功能；
+# mount -o acl  device dir 		
+# tune2fs  -o  acl  device 		
+            ro：挂载的文件系统成为只读 		
+            rw：挂载的文件系统成为读写
+            dev/nodev：此设备上是否允许创建设备文件；	
+            exec/noexec：是否允许运行此设备上的程序文件；
+            auto/noauto：是否允许此分区被以mount -a自动挂载					
+            user/nouser：是否允许普通用户挂载此文件系统；		
+            suid/nosuid：是否允许程序文件上的suid和sgid特殊权限生效；					
+            defaults：Use default options（rw, suid, dev, exec, auto, nouser, async, and relatime）
+            loop 特殊设备挂载(主要针对本地光盘，硬盘等的特殊挂载需要） 
+一个使用技巧：
+	可以实现将目录绑定至另一个目录上，作为其临时访问入口；操作为mount --bind  源目录  目标目录
+查看当前系统所有已挂载的设备：
+# mount 	
+# cat  /etc/mtab			
+# cat  /proc/mounts	
+挂载光盘：		
+  mount  -r  /dev/cdrom  mount_point			
+  光盘设备文件：/dev/cdrom, /dev/dvd
+挂载U盘：
+  事先识别U盘的设备文件；		
+  挂载本地的回环设备：	
+  # mount  -o  loop  /PATH/TO/SOME_LOOP_FILE   MOUNT_POINT 
+umount命令：
+  umount  device|dir		
+  注意：正在被进程访问到的挂载点无法被卸载；		
+查看文件被哪个或哪些进程所占用：
+# lsof      MOUNT_POINT
+lsof使用案例
+[root@www ~]# lsof |less
+COMMAND    PID  TID           USER   FD      TYPE             DEVICE  SIZE/OFF       NODE NAME
+systemd      1                root  cwd       DIR              253,0      4096        128 /
+systemd      1                root  rtd       DIR              253,0      4096        128 /
+systemd      1                root  txt       REG              253,0   1523624   36284134 /usr/lib/systemd/systemd
+..................................................................................................................
+说明如下：
+lsof全名list opened files，也就是列举系统中已经被打开的文件
+常见包括如下几个字段：更多的可见manual。
+1、COMMAND  默认以9个字符长度显示的命令名称。可使用+c参数指定显示的宽度，若+c后跟的参数为零，则显示命令的全名
+2、PID：进程的ID号
+3、PPID 父进程的IP号，默认不显示，当使用-R参数可打开。
+4、PGID  进程组的ID编号，默认也不会显示，当使用-g参数时可打开。
+5、USER  命令的执行UID或系统中登陆的用户名称。默认显示为用户名，当使用-l参数时，可显示UID。
+6、FD  是文件的File Descriptor number，或者如下的内容：
+引用
+cwd  current working directory;
+Lnn  library references (AIX);
+jld  jail directory (FreeBSD);
+ltx  shared library text (code and data);
+Mxx  hex memory-mapped type number xx.
+m86  DOS Merge mapped file;
+mem  memory-mapped file;
+mmap memory-mapped device;
+pd   parent directory;
+rtd  root directory;
+tr   kernel trace file (OpenBSD);
+txt  program text (code and data);
+v86  VP/ix mapped file;
+文件的File Descriptor number显示模式有：
+
+引用
+r for read access;
+w for write access;
+u for read and write access;
+N for a Solaris NFS lock of unknown type;
+r for read lock on part of the file;
+R for a read lock on the entire file;
+w for a write lock on part of the file;
+W for a write lock on the entire file;
+u for a read and write lock of any length;
+U for a lock of unknown type;
+x for an SCO OpenServer Xenix lock on part  of the file;
+X  for an SCO OpenServer Xenix lock on the entire file;
+space if there is no lock.
+
+7、TYPE
+引用
+IPv4 IPv4的包；
+IPv6 使用IPv6格式的包，即使地址是IPv4的，也会显示为IPv6，而映射到IPv6的地址；
+DIR  目录
+LINK 链接文件
+REG  a regular file 表示常规文件
+8、DEVICE  使用character special、block special表示的设备号
+9、SIZE    文件的大小，如果不能用大小表示的，会留空。使用-s参数控制。
+10、NODE   本地文件的node码，或者协议，如TCP等
+11、NAME   挂载点和文件的全路径（链接会被解析为实际路径），或者连接双方的地址和端口、状态等
+
+常用示例：
+1.显示开启/var/log/httpd/access_log文件的进程
+[root@www ~]# lsof /var/log/httpd/access_log
+lsof: WARNING: can't stat() fuse.gvfsd-fuse file system /run/user/42/gvfs
+      Output information may be incomplete.
+COMMAND  PID   USER   FD   TYPE DEVICE SIZE/OFF    NODE NAME
+httpd   4080   root    7w   REG  253,0     9650 1245669 /var/log/httpd/access_log
+httpd   4127 apache    7w   REG  253,0     9650 1245669 /var/log/httpd/access_log
+httpd   4129 apache    7w   REG  253,0     9650 1245669 /var/log/httpd/access_log
+httpd   4132 apache    7w   REG  253,0     9650 1245669 /var/log/httpd/access_log
+httpd   4135 apache    7w   REG  253,0     9650 1245669 /var/log/httpd/access_log
+httpd   4138 apache    7w   REG  253,0     9650 1245669 /var/log/httpd/access_log
+
+
+2.查看httpd进程现在打开的文件
+[root@www ~]# lsof -c httpd
+lsof: WARNING: can't stat() fuse.gvfsd-fuse file system /run/user/42/gvfs
+      Output information may be incomplete.
+COMMAND  PID   USER   FD      TYPE             DEVICE SIZE/OFF     NODE NAME
+httpd   4080   root  cwd       DIR              253,0     4096      128 /
+httpd   4080   root  rtd       DIR              253,0     4096      128 /
+httpd   4080   root  txt       REG              253,0   523568 68816677 /usr/sbin/httpd
+httpd   4080   root  mem       REG              253,0    57824 67245103 /usr/lib64/libnss_files-2.17.so
+3. 看进程号为1的进程打开了哪些文件
+[root@www ~]# lsof -p 1
+COMMAND PID USER   FD      TYPE             DEVICE SIZE/OFF       NODE NAME
+systemd   1 root  cwd       DIR              253,0     4096        128 /
+systemd   1 root  rtd       DIR              253,0     4096        128 /
+systemd   1 root  txt       REG              253,0  1523624   36284134 /usr/lib/systemd/systemd
+
+4.依照文件夹/etc来搜寻，但不会打开子目录，用来显示目录下被进程开启的文件
+[root@www ~]# lsof +d /etc
+lsof: WARNING: can't stat() fuse.gvfsd-fuse file system /run/user/42/gvfs
+      Output information may be incomplete.
+COMMAND    PID  USER   FD   TYPE DEVICE SIZE/OFF     NODE NAME
+avahi-dae  793 avahi  cwd    DIR  253,0       94  1622752 /etc/avahi
+avahi-dae  793 avahi  rtd    DIR  253,0       94  1622752 /etc/avahi
+cupsd     1429  root   10r   REG  253,0     2610 35288233 /etc/passwd
+
+5. 打开/etc文件夹以及其子目录搜寻，用来显示目录下被进程开启的文件
+[root@www ~]# lsof +D  /etc
+COMMAND    PID  USER   FD   TYPE DEVICE SIZE/OFF      NODE NAME
+systemd-u  640  root  mem    REG  253,0  7015095  34738461 /etc/udev/hwdb.bin
+systemd-u  640  root    6r   REG  253,0  7015095  34738461 /etc/udev/hwdb.bin
+avahi-dae  793 avahi  cwd    DIR  253,0       94   1622752 /etc/avahi
+avahi-dae  793 avahi  rtd    DIR  253,0       94   1622752 /etc/avahi
+cupsd     1429  root    9r   REG  253,0        0   2011814 /etc/cups/client.conf
+
+6. 显示某用户的已经打开的文件（或该用户执行程序已经打开的文件）
+[root@www ~]# lsof -u apache
+或者
+[root@www ~]# lsof -u  48
+
+lsof -i 用以显示符合条件的进程情况
+[root@www ~]# lsof -h
+ -i i   select by IPv[46] address: [46][proto][@host|addr][:service_list|port_list]
+ ..................................................................................
+46 --> IPv4 or IPv6
+proto--> TCP or UDP
+hostname --> Internet host name
+hostaddr --> IPv4位置
+service_list--> /etc/service中的 service name (可以不只一个)
+port_list-->    端口号 (可以不只一个)
+7.查看80端口现在运行什么程序
+[root@www ~]# lsof -i :80
+COMMAND  PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+httpd   4080   root    4u  IPv6  58372      0t0  TCP *:http (LISTEN)
+httpd   4127 apache    4u  IPv6  58372      0t0  TCP *:http (LISTEN)
+httpd   4129 apache    4u  IPv6  58372      0t0  TCP *:http (LISTEN)
+httpd   4132 apache    4u  IPv6  58372      0t0  TCP *:http (LISTEN)
+httpd   4135 apache    4u  IPv6  58372      0t0  TCP *:http (LISTEN)
+httpd   4138 apache    4u  IPv6  58372      0t0  TCP *:http (LISTEN)
+	
+# fuser -v  MOUNT_POINT		
+终止所有正在访问某挂载点的进程：			
+# fuser  -km  MOUNT_POINT
+交换分区的启用和禁用：
+  创建交换分区：mkswap
+  启用交换分区：swapon	
+  swapon  [OPTION]  [DEVICE]		
+           -a：定义在/etc/fstab文件中的所有swap设备；
+  禁用：swapoff
+	swapoff DEVICE
+设定除根文件系统以外的其它文件系统能够开机时自动挂载：/etc/fstab文件
+每行定义一个要挂载的文件系统及相关属性：	
+6个字段：
+   (1) 要挂载的设备：
+       设备文件名			
+       LABEL		
+       UUID				
+伪文件系统：如sysfs, proc, tmpfs等			
+  (2) 挂载点 
+      swap类型的设备的挂载点为swap；			
+  (3) 文件系统类型；
+  (4) 挂载选项
+      defaults：使用默认挂载选项；				
+      如果要同时指明多个挂载选项，彼此间以分隔隔开,defaults,acl,noatime,noexec
+  (5) 转储频率
+      0：从不备份；				
+      1：每天备份；			
+      2：每隔一天备份；		
+ (6) 自检次序			
+     0：不自检；				
+     1：首先自检，通常只能是根文件系统可用1；			     
+     2：次级自检
+     ...	
+mount  -a：可自动挂载定义在此文件中的所支持自动挂载的设备；
+两个命令：df和du
+df命令：
+查看文件系统的磁盘使用情况			
+ df [OPTION]... [FILE]...		
+    -l：仅显示本地文件的相关信息；	
+    -h：human-readable
+    -i：显示inode的使用状态而非blocks,默认显示的是blocks
+du命令：
+查看目录所占磁盘的情况		
+ du [OPTION]... [FILE]...
+    -s: sumary	
+    -h: human-readable
+练习：
+1、创建一个10G的分区，并格式化为ext4文件系统； 			
+  (1) block大小为2048；预留空间为2%，卷标为MYDATA；
+      mkfs -t ext4 -b 2048 -L MYDATA			 
+  (2) 挂载至/mydata目录，要求挂载时禁止程序自动运行，且不更新文件的访问时间戳；
+      mount -n -t ext4 -o noatime /dev/sda#  /mydata		
+  (3) 可开机自动挂载；
+      修改/etc/fstab		
+2、创建一个大小为1G的swap分区，并启动之；
+      先分出一块1G的分区，
+      mkswap 格式化成swap
+      swapon
+      swapoff 
+		
+
+回顾：	
+文件系统：
+目录：文件		
+     元数据：inode, inode table		     
+     数据：data blocks	
+     下级文件或目录的文件名与其inode对应关系
+     文件名：上级目录；
+     删除文件：将此文件指向的所有data block标记为未使用状态；将此文件的inode标记为未使用；
+     复制和移动文件：
+         复制：新建文件；	
+         移动文件：在同一文件系统：改变的仅是其路径；		 
+     在不同文件系统：复制数据至目标文件，并删除原文件；		
+符号链接：
+权限：lrwxrwxrwx	
+硬链接：指向同一个inode；
+9-1
+
+回顾：	
+mount/umount, fstab配置文件、ext文件系统基础原理、read、bash		
+/etc/fstab
+  ext：super block, GDT, inode table, block bitmap, inode bitmap
+dumpe2fs -h, tune2fs -l
+		
+软链接：l, 
+RAID磁盘阵列: 
+Redundant Arrays of Inexpensive Disks ，全名是容错廉价磁盘阵列                    
+
+RAID解释：
+有“独立磁盘构成的具有冗余能力的阵列”之意。磁盘阵列是由很多价格较便宜的磁盘，组合成一个容量巨大的磁盘组，利用个别磁盘提供数据所产生加成效果提升整个磁盘系统效能。
+利用这项技术，将数据切割成许多区段，分别存放在各个硬盘上。
+  提高IO能力：
+  磁盘并行读写；	
+  提高耐用性；	
+  磁盘冗余来实现	
+级别：多块磁盘组织在一起的工作方式有所不同；
+RAID实现的方式：
+  外接式磁盘阵列：通过扩展卡提供适配能力	
+  内接式RAID：主板集成RAID控制器
+  Software RAID：
+     RAID-0：0, 条带卷，strip; 
+     RAID-1: 1, 镜像卷，mirror;
+     RAID-2：		     ..	
+     RAID-5：
+     RAID-6：		
+     RAID10	
+     RAID01	
+RAID-0特性: 		
+   读、写性能提升；		
+   可用空间：N*min(S1,S2,...)	
+   无容错能力
+   最少磁盘数：2, 2+	
+RAID-1特性：	
+   读性能提升、写性能略有下降；
+   可用空间：1*min(S1,S2,...)
+   有冗余能力
+   最少磁盘数：2, 2+	
+RAID-4：	
+  1101, 0110, 1011	
+RAID-5特性：
+  写入数据类似RAID-0，但是每个循环的写入过程中，在每块磁盘还加入一个同位检查数据parity
+  有容错能力：1块磁盘		
+  读、写性能提升	
+  可用空间：(N-1)*min(S1,S2,...)			  
+  最少磁盘数：3, 3+
+RAID-6特性：
+  RAID-6在RAID-5基础上发展而来，RAID-5仅支持一块磁盘损坏。RAID-6使用两块磁盘的容量做为parity，所以支持两块磁盘损坏			
+  读、写性能提升	
+  可用空间：(N-2)*min(S1,S2,...)	
+  有容错能力：2块磁盘
+  最少磁盘数：4, 4+
+混合类型	
+RAID-10特性：			
+  读、写性能提升			
+  可用空间：N*min(S1,S2,...)/2		
+  有容错能力：每组镜像最多只能坏一块；	
+  最少磁盘数：4, 4+
+RAID-01特性:
+  RAID-50、RAID7		
+JBOD：Just a Bunch Of Disk		
+  功能：将多块磁盘的空间合并一个大的连续空间使用；
+  可用空间：sum(S1,S2,...)
+  常用级别：RAID-0, RAID-1, RAID-5, RAID-10, RAID-50, JBOD
+  实现方式：
+      硬件实现方式		
+      软件实现方式 	
+
+案例：
+简述raid0、raid1、raid5三种工作模式的工作原理及特点。
+Raid0：
+     最简单的模式，就是把N个物理磁盘合成一个总的虚拟磁盘。
+     优点是：磁盘的读写性能都提升了
+     缺点是：只要有一个磁盘数据不正确，整个虚拟磁盘都会有影响。安全性最差。
+Raid1：
+     最安全的模式，raid1也叫做镜像盘，都是以偶数形式出现。每个物理盘都有一块与它数据完全一致的磁盘搭配，
+     优点是：在坏掉某一块磁盘时都不会造成数据的损坏。
+     缺点是：磁盘的空间利用率只能达到50%。
+Raid5：
+     最性价比的模式。raid5是拿一块磁盘的空间来进行奇偶校验，容错能力平均分布所有硬盘上，当其中一块硬盘失效时，可以保证其它成员的硬盘数据正常，
+     所以RAID5的总容量为“(N-1)*最低容量硬盘容量”，对整体而言，raid5容量效率比较高。
+     优点是：在保证了安全性的前提下最大化使用容量。
+     缺点是：会影响整机的性能。
+
+CentOS 6上的软件RAID的实现：		
+  结合内核中的md(multi devices)	
+  mdadm：模式化的工具	
+  命令的语法格式：mdadm [mode] <raiddevice> [options] <component-devices>				  
+  支持的RAID级别：LINEAR, RAID0, RAID1, RAID4, RAID5, RAID6, RAID10; 
+
+模式：						
+ 创建：-C	 
+ 装配: -A					
+ 监控: -F					
+ 管理：-f, -r, -a				
+<raiddevice>: /dev/md#			
+<component-devices>: 任意块设备
+		
+-C: 创建模式						
+-n #: 使用#个块设备来创建此RAID；					
+-l #：指明要创建的RAID的级别；
+-a {yes|no}：自动创建目标RAID设备的设备文件；			
+-c CHUNK_SIZE: 指明块大小；
+-x #: 指明空闲盘的个数；
+-D：显示raid的详细信息；						
+例如：创建一个10G可用空间的RAID5；							
+mdadm -D /dev/md#	
+管理模式：		  
+  -f: 标记指定磁盘为损坏；					
+  -a: 添加磁盘			
+  -r: 移除磁盘	
+观察md的状态：					
+  cat /proc/mdstat				
+停止md设备：	  
+mdadm -S /dev/md#			
+watch命令：			
+  -n #: 刷新间隔，单位是秒；				
+ watch -n# 'COMMAND'
+练习1：创建一个可用空间为10G的RAID1设备，要求其chunk大小为128k，文件系统为ext4，有一个空闲盘，开机可自动挂载至/backup目录；
+练习2：创建一个可用空间为10G的RAID10设备，要求其chunk大小为256k，文件系统为ext4，开机可自动挂载至/mydata目录；
+
+博客作业：raid各级别特性；
+LVM2:
+LVM: Logical Volume Manager， 
+Version: 2
+dm: device mapper，将一个或多个底层块设备组织成一个逻辑设备的模块；
+创建完成的逻辑卷表示方式：		
+ /dev/dm-#
+ /dev/mapper/VG_NAME-LV_NAME	
+ /dev/mapper/vol0-root
+ /dev/VG_NAME/LV_NAME
+ /dev/vol0/root
+pv管理工具：
+pvs：简要pv信息显示
+pvdisplay：显示pv的详细信息
+pvcreate /dev/DEVICE: 创建pv
+pvremove:删除已经存在的pv
+pvmove：移动已经存在的pv到另外一个vg
+vg管理工具：		
+vgs	
+vgdisplay
+vgcreate  [-s #]  VG名称  PV名称...    -s表示指定PE的大小，PE是LVM最小的存储块，类似文件系统你们的block		
+vgextend  VG名称  PV名称...   增加PV到VG中		
+vgreduce  VG名称  PV名称...   从VG中删除PV
+vgremove  删除vg			
+lv管理工具：
+  lvs	
+  lvdisplay		
+  lvcreate -L #[mMgGtT] -n NAME VG名称		
+  lvremove /dev/VG_NAME/LV_NAME  删除已经存在的lvm
+扩展逻辑卷的步骤：
+  1）用fdisk设置类型为8e的分区
+  2）pvcreate构建pv
+  3）vgextend增加pv到已经存在的vg里面
+如果vg还有空间，则前面3步不需要；如果空间不够，则需要前面3步
+  4）lvextend或者lvresize将新加入vg的pe增加到lv中
+  5）resize2fs将文件系统的容量确实增加
+# lvextend -L [+]#[mMgGtT] /dev/VG_NAME/LV_NAME	
+# resize2fs  /dev/VG_NAME/LV_NAME
+  [size]   
+         size可以加也可以不加，如果加上size的话，就必须要给一个单位，如M,G等。如果没有size的话，就默认使用整个分区的容量来处理
+注意事项：
+     支持在线扩展，必须要先物理扩展后才能逻辑扩展
+扩展逻辑卷实际案例：--重要
+fdisk /dev/sdb 分出10G大小的/dev/sdb1
+pvcreate /dev/sdb1
+vgcreate vg1 /dev/sdb1
+lvcreate -L 2G -n lv1 /dev/vg1
+mkfs -t ext4 /dev/vg1/lv1
+mount /dev/vg1/lv1 /mnt
+[root@node4 ~]# df 
+Filesystem          1K-blocks    Used Available Use% Mounted on
+/dev/mapper/vg1-lv1   2064208   68608   1890744   4% /mnt
+lvextend -L +2G  /dev/vg1/lv1
+resize2fs /dev/vg1/lv1
+[root@node4 ~]# df 
+Filesystem          1K-blocks    Used Available Use% Mounted on
+/dev/mapper/vg1-lv1   4128448   69624   3849136   2% /mnt
+补充说明：
+     如果是xfs文件系统，就执行xfs_growfs /dev/vg1/lv1
+缩减逻辑卷：不建议在实际环境中操作
+必须要先卸载后，才能缩减
+先缩减逻辑边界，再缩减物理边界		
+# umount /dev/VG_NAME/LV_NAME
+# e2fsck -f /dev/G_NAME/LV_NAME
+# resize2fs /dev/VG_NAME/LV_NAME  #[mMgGtT]
+# lvreduce -L [-]#[mMgGtT] /dev/VG_NAME/LV_NAME
+创建快照：
+lvcreate -L #[mMgGtT] -p r -s -n snapshot_lv_name original_lv_name
+	-p表示permission权限，-s表示snapshot
+练习1：创建一个至少有两个PV组成的大小为20G的名为testvg的VG；要求PE大小为16MB, 而后在卷组中创建大小为5G的逻辑卷testlv；挂载至/users目录；
+       pvcreate /dev/sdb{1,2}
+       vgcreate -s 16M testvg  /dev/sdb{1,2}
+       lvcreate -L 5G -n testlv  testvg
+       mkfs -t ext4 /dev/testvg/testlv
+       mount /dev/testvg/testlv  /user 
+练习2:新建用户archlinux，要求其家目录为/users/archlinux，而后su切换至archlinux用户，复制/etc/pam.d目录至自己的家目录；
+       useradd -d /users/archlinux  archlinux
+       su -l 
+archlinux
+       cp /etc/pam.d/   .
+练习3:扩展testlv至7G，要求archlinux用户的文件不能丢失；
+      lvextend -L +2G /dev/testvg/testlv
+      resize2fs /dev/testvg/testlv	
+练习4:收缩testlv至3G，要求archlinux用户的文件不能丢失；
+练习5:对testlv创建快照，并尝试基于快照备份数据，验正快照的功能；
+      lvcreate -L 2G -p rw -s -n mysnap /dev/testvg/testlv
+      mkdir /test
+      mount /dev/testvg/mysnap  /test
+      cd /test
+      做复制操作即可
+
+
+
+文件系统挂载使用：
+	
+   挂载光盘设备：
+		
+   光盘设备文件：
+			
+      IDE: /dev/hdc
+		      
+      SATA: /dev/sr0
+
+			
+   符号链接文件：
+				
+       /dev/cdrom
+				
+      /dev/cdrw
+	
+      /dev/dvd
+				
+     /dev/dvdrw
+
+		
+mount -r /dev/cdrom /media/cdrom
+		
+umount /dev/cdrom
+
+
+	
+dd命令：convert and copy a file
+	
+dd命令可以读取磁盘设备的内容（几乎是直接读取扇区），然后将整个设备备份成一个文件
+可以理解为，dd命令可以备份整块分区或整块磁盘，即把superblock，boot sector,meta data等全部复制过来	
+用法：
+			
+  dd if=/PATH/FROM/SRC of=/PATH/TO/DEST 
+ bs=#  count=# 	 bs若未指定默认是512bytes，即一个扇区的大小		
+磁盘拷贝：
+				
+  dd if=/dev/sda of=/dev/sdb
+
+      不需要对/dev/sdb格式化		
+备份MBR
+		  
+  dd if=/dev/sda of=/tmp/mbr.bak  bs=512 count=1
+
+			
+破坏MBR中的bootloader：
+				
+  dd if=/dev/zero of=/dev/sda     bs=256  count=1
+
+	  bs不能超过446，否则不但bootloader损坏了，连分区表也损坏了，那就恢复不了。	
+两个特殊设备：
+			
+  /dev/null: 数据黑洞；
+			
+ /dev/zero：吐零机；
+
+
+	
+博客作业：lvm基本应用，扩展及缩减实现；			
+					
+
+回顾：lvm2, dd
+	lvm: 边界动态扩展或收缩；快照；
+		
+  pv --> vg --> lv
+			
+  PE:
+			
+  LE:
+
+	
+dd: 复制
+
+btrfs文件系统：
+	
+   技术预览版
+
+	Btrfs (B-tree, Butter FS, Better FS), GPL, Oracle, 2007, CoW; 
+	ext3/ext4, xfs
+
+	
+   核心特性：
+		
+      多物理卷支持：btrfs可由多个底层物理卷组成；
+      支持RAID，以联机“添加”、“移除”，“修改”；
+		
+      写时复制更新机制(CoW)：复制、更新及替换指针，而非“就地”更新；
+		
+      数据及元数据校验码：checksum
+		
+      子卷：sub_volume
+		
+      快照：支持快照的快照；
+
+      透明压缩：
+
+	
+文件系统创建：
+	
+	mkfs.btrfs
+  -L 'LABEL'
+	-d <type>: raid0, raid1, raid5, raid6, raid10, single
+	
+                    -m <profile>: raid0, raid1,raid5, raid6, raid10, single, dup
+			                    
+                    -O <feature>
+ -O list-all: 列出支持的所有feature；
+
+		
+属性查看：
+btrfs filesystem show 
+
+		
+挂载文件系统：
+			
+   mount -t btrfs /dev/sdb MOUNT_POINT
+
+		
+透明压缩机制：
+		   
+   mount -o compress={lzo|zlib} DEVICE MOUNT_POINT
+
+	
+子命令：filesystem, device, balance, subvolume
+
+
+回顾：
+        
+   RAID：Level
+        
+   LVM：volume
+        
+   btrfs：了解；
+
+        
+压缩和解压缩工具和bash脚本编程；	
+压缩比
+目的：时间换空间		                
+CPU的时间 --> 磁盘空间
+压缩命令：压缩命令只能针对文件，不能针对目录进行。归档命令tar才可以针对目录进行			
+   compress/uncompress---.Z
+   gzip/gunzip---.gz
+   bzip2/bunzip2--.bz2
+   xz/unxz--.xz
+   lzma/unlzma---lzma
+   zip/unzip
+   tar
+   cpio
+1、gzip/gunzip/zcat		
+gzip, gunzip, zcat - compress or expand files
+gzip  [OPTION]...  FILE...
+      -d：解压缩，相当于gunzip；
+      -#：指定压缩比，默认是6；数字越大压缩比越大（1-9）；
+      -c：将压缩结果输出至标准输出；
+举例：				
+gzip  -c  FILE > /PATH/TO/SOMEFILE.gz
+2、bzip2/bunzip2/bzcat
+bzip2  [OPTION]...  FILE...
+      -d：解压缩
+      -#：指定压缩比；默认是6；数字越大压缩比越大（1-9）；	
+      -k：keep，保留原文件；
+3、xz/unxz/xzcat
+   lzma/unlzma/lzcat
+xz  [OPTION]...  FILE...	
+    -d：解压缩
+    -#：指定压缩比；默认是6；数字越大压缩比越大（1-9）；	
+    -k：保留原文件；
+4、归档命令：tar, cpio
+   tar命令：	
+   tar  [OPTION]...  FILE...		
+(1) 创建归档
+    -cf /PATH/TO/SOMEFILE.tar  FILE... 		
+(2) 展开归档
+    -xf  /PATH/FROM/SOMEFILE.tar 
+    -xf  /PATH/FROM/SOMEFILE.tar  -C  /PATH/TO/SOMEDIR
+(3) 查看归档文件的文件列表
+    -tf  /PATH/TO/SOMEFILE.tar
+	归档完成后通常需要压缩，结果此前的压缩工具，就能实现压缩多个文件了；
+(4) 归档压缩
+    -z：gzip2				
+    -zcf   /PATH/TO/SOMEFILE.tar.gz  FILE...			
+解压缩并展开归档：
+    -zxf  /PATH/TO/SOMEFILE.tar.gz
+    -j：bzip2  
+    -jcf				
+    -jxf			
+    -J: xz					
+    -Jcf  
+    -Jxf
+zip：
+zip/unzip		
+后缀名：.zip
+练习：下载redis-3.0.2.tar.gz，展开至/tmp目录；而后得新创建压缩为xz格式；	
+       tar -zxvf redis-3.0.2.tar.gz -C /tmp
+       tar -Jcf redis-3.0.2.tar.xz
+
+案例:企业中常见的备份方式
+tar -zcf - test.txt |gzip|ssh localhost 'cat - >/tmp/test.tar.gz'
+这样减少了一次本地IO，备份的文件以流的方式传递给了远程主机，gzip可以替换了pigz，效率会更好
+
+案例:将文件/etc/a下中除了b文件外的所有文件压缩打包放到/home/a下，名字为a.gz
+tar –exclude /etc/a/b -zPcvf /home/a/a.gz /etc/a     
+不加P选项会提示：tar: Removing leading `/’ from member names
+exclude就是排除的意思
+
+案例:备份时去除上级目录
+]# tar -zcvf script.tar.gz -C /tmp script   -C表示备份时进入的临时目录
+script/
+script/scripts.sh
+script/script.rpm.sh
+script/rollback.sh
+]# ll
+总用量 4
+-rw-r--r-- 1 root root 2767 3月  31 05:24 script.tar.gz
+]# tar -zxvf script.tar.gz  解压完后直接就是script，如果不加-C，解压完后是tmp
+]# ll
+drwxr-xr-x 2 root root   61 3月  28 14:53 script
+-rw-r--r-- 1 root root 2767 3月  31 05:24 script.tar.gz
+]# ll script
+-rwxr-xr-x 1 root root  274 3月  28 14:53 rollback.sh
+-rwxr-xr-x 1 root root 6516 3月  28 14:31 script.rpm.sh
+-rwxr-xr-x 1 root root 2109 3月  24 02:12 scripts.sh
+				
