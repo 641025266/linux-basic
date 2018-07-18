@@ -1,0 +1,103 @@
+调优分为：cpu,memory,io,file system,network(感觉实际上就是内核的5大功能）
+进程调度：
+    OS:实现了硬件抽象，
+    CPU:调度器
+       Big O即大O算法
+       O(1）
+       0-139
+       0-99
+       100-139：nice值
+    memory：
+        在32位系统时，intel有一项PAE（即物理地址扩展技术），32bit+4bit，可以实现64G内存，但线性地址空间还是4G 
+    进程地址空间包括：代码段，数据段，堆，栈(可以简单理解为存放变量的空间)
+52-1,46分钟
+       MMU是通过查找每一个进程的task-struct(或者称为page table页表）来获取虚拟地址到物理地址的映射关系的，获取到映射关系后，存放在TLB中
+       TLB(translation  lookaside buffer)，转换后备缓冲，用于缓存虚拟地址到物理地址的映射关系，提升查询速度
+       huge page即大页框技术可以提升TLB的命中率
+       NUMA,即no uniform memory access architecture,非同一内存访问
+       taskset -p -c cpu_number  pid，绑定进程到某一个cpu
+       开机启动就隔离cpu的操作是，在/etc/grup.conf的kernel的最后增加上isolcpus=cpu-number,cpu-number,..
+       隔离中断的方法是echo cpu-number..>/proc/irq/#/sm-affinity ，这里适应的cpu-number应该是isolcpus中定义的cpu集合之外的cpu
+       
+
+       优先级分为0-139
+               实时优先级：1-99，数字越大等级越高
+               动态优先级：100-139，数字越小等级越高
+      进程调度类别：
+            sched-fifo
+            chrt -f [1-99] /path/to/programe  argument
+            sched-rr
+            chrt -r [1-99] /path/to/programe  argument
+            sched-nomal/sched-other 针对的100-139
+            通过调整nice,renice来调整优先级,只能调整动态优先级，不能调整实时优先级
+      建议的cpu utilization(cpu利用率）分析工具:
+         htop,dstat,glances,sar,iostat，vmstat(实际上所有工具都是通过查看/proc,/sys下面的文件来获取原始数据的）
+         vmstat产生的数据说明是，si指从磁盘读取到内存，so指从内存写入数据到磁盘，bi指块级别读取，bo指块级别写入
+      cpu同外部io设备沟通的方式：
+              poll：轮询，盲等待
+              中断
+              DMA：直接内存访问
+      memory
+         overcommit_memory
+         swap+memory*overcommit_ratio
+         msg
+         shm
+         body system:避免内存外碎片
+         salb system:避免内存内碎片
+      cpu调优：
+            cpu affinity
+            优先级调整cgroups
+      53-3,67分钟
+      IO调优：主要是针对硬盘的调优
+          CFQ:complete  fair queue
+          deadline
+          anticipatory
+          Noop:no operation
+          修改磁盘调度器的方式 echo "”  /sys/block/<device>/queun/scheduler
+      file system调优：
+
+
+简述linux的优化
+[硬件方面]
+1. cpu
+2. 内存
+3. 存储(使用raid，使用ssd)
+4. 网卡(使用千兆网卡，或者双网卡绑定)
+[系统方面]
+1. 内核参数优化(网络相关、内存相关、缓冲缓存相关)相关内核参数有如下这些
+net.ipv4.tcp_max_tw_buckets = 6000  //timewait的数量，默认是180000。 buckets表示水桶，大量意思，此处理解为数量
+net.ipv4.ip_local_port_range = 1024  65000  //允许系统打开的端口范围。
+net.ipv4.tcp_tw_reuse = 1 //允许将处于TIME-WAIT状态的sockets重新用于新的TCP 连接。
+net.ipv4.tcp_tw_recycle = 1 表示开启迅速回收处于TIME-WAIT状态的sockets，默认是关闭
+net.ipv4.tcp_syncookies = 1 //开启SYN Cookies，当出现SYN等待队列溢出时，启用cookies 来处理。防范少量SYN攻击。详细参考鸟哥网络篇279页介绍
+net.ipv4.tcp_max_orphans = 262144 //系统中最多有多少个TCP套接字不被关联到任何一个用户文件句柄上。如果超过这个数字，孤儿(orphans)连接将即刻被复位并打印出警告信息。
+                                    这个限制仅仅是为了防止简单的DoS攻击，不能过分依靠它或者人为地减小这个值，更应该增加这个值(如果增加了内存之后)。
+net.ipv4.tcp_max_syn_backlog = 262144  //记录的那些尚未收到客户端确认信息的连接请求的最大值，实际就是半连接队列
+                                         对于有128M内存的系统而言，缺省值是1024，小内存的系统则是128。
+net.ipv4.tcp_synack_retries = 1  //为了打开对端的连接，内核需要发送一个SYN并附带一个回应前面一个SYN的ACK。也就是所谓三次握手中的第二次握手。
+                                   这个设置决定了内核放弃连接之前发送SYN+ACK包的数量。
+net.ipv4.tcp_syn_retries = 1  //在内核放弃建立连接之前发送SYN包的数量。
+net.ipv4.tcp_fin_timeout  2     表示对于本端断开的socket连接，TCP保持在FIN-WAIT-2状态的时间。默认值为 60 秒。
+如下这3个参数与TCP KeepAlive有关，建议做如下修改
+net.ipv4.tcp_keepalive_time = 600   默认是7200 seconds (2 hours)
+net.ipv4.tcp_keepalive_probes = 3   默认是9
+net.ipv4.tcp_keepalive_intvl =  30  默认是75seconds
+默认参数意思是如果某个TCP连接在idle 2个小时后,内核才发起probe.如果probe 9次(每次75秒)不成功,内核才彻底放弃,认为该连接已失效.对服务器而言,显然上述值太大
+net.ipv4.tcp_wmem = 8192 131072 16777216
+net.ipv4.tcp_rmem = 32768 131072 16777216
+net.ipv4.tcp_mem = 786432 1048576 1572864
+net.ipv4.ip_conntrack_max = 65536
+net.ipv4.netfilter.ip_conntrack_max=65536
+net.ipv4.netfilter.ip_conntrack_tcp_timeout_established=180
+net.core.somaxconn = 16384
+net.core.netdev_max_backlog = 16384
+vm.swappiness=0    如果内存够大，应当告诉linux不必太多的使用SWAP 分区， swappiness=0的时候表示最大限度使用物理内存，然后才是swap空间.
+                   swappiness＝100的时候表示积极的使用swap分区，并且把内存上的数据及时的搬运到swap空间里面
+2. 文件系统方面（分区调优，格式化时根据存储文件特性，指定合适的块大小，noatime，日志隔离，软raid，有效使用/dev/shm，关闭不必要的服务）
+3. cpu优化 （进程绑定，中断绑定）
+   numa架构cpu：  http://blog.csdn.net/jollyjumper/article/details/17168175
+   taskset 把进程和cpu绑定  http://blog.csdn.net/ttyttytty12/article/details/11726569
+[架构方面]
+使用简单并且稳定的架构方案
+多使用缓存
+
