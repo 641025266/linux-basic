@@ -1,0 +1,670 @@
+﻿
+系统管理：sudo, pam, awk
+安全及服务管理：
+	openssl, openssh
+	dns: bind
+	web: httpd, lamp, mysql, php
+		lammp
+		nginx (tengine), lnmp, lnmmp
+	file services: ftp, samba, nfs
+	dhcp, pxe
+	iptables
+        mail: 
+
+
+17-1 加密和解密基础
+openssl(ssl/tls)    注意：ssl位于用户空间和内核空间之间
+openssh(ssh)
+
+OpenSSL:（secure socket layer）
+	应用层协议：http, ftp, smtp, pop3, imap4, ldap
+
+        安全的目标：
+		1）保密性：
+			数据保密性
+			隐私性
+		2）完整性：
+			数据完整性
+			系统完整性
+		3）可用性：
+         攻击类型：
+                威胁保密性的攻击：窃听，通信量分析
+                威胁完整性的攻击：更改，伪装，重放，否认
+                威胁可用性的攻击：DOS
+         解决方案：
+               技术：加密和解密
+               服务：用于抵御攻击的服务
+         加密和解密：
+               传统加密：替代加密
+               现代加密：现代块加密
+
+	OSI：x.800
+		安全攻击：
+			被动攻击：窃听
+			主动攻击：伪装、重放、消息篡改、拒绝服务
+		安全机制：
+			加密、数字签名、访问控制、数据完整性、认证交换、流量填充、路由控制、公证
+		安全服务：
+			认证
+			访问控制
+			数据保密性
+				连接保密性
+				无连接保密性
+				选择域保密性
+				流量保密性
+			数据完整性
+			不可否认性
+
+		密码算法和协议：--重要
+			对称加密（加密和解密是同一个密钥）
+			公钥加密或者称为不对称加密
+			单向加密
+			认证协议
+
+	明文：clear text, plain text
+	密文：
+
+	加密工具：加密算法
+		 明文 --> 密文
+
+		密钥：
+
+	IKE：Internet Key Exchange  互联网密钥交换
+
+	CA：Certificate Authority
+
+17-2
+
+	常见的加密算法有如下4种：--重要
+		1）对称加密：
+			DES：Data Encryption Standard（数据加密标准）, 56bits
+			     3DES: 
+			AES: Advanced (128, 192, 256, 384, 512)
+			     Blowfish
+			     Twofish
+			     IDEA
+			     RC6
+		  	     CAST5
+
+			特性：
+				1、加密、解密使用同一密钥，但算法可能不同
+				2、将明文分隔成固定的大小的块，逐个进行加密；
+
+			缺陷：
+				1、密钥过多；
+				2、密钥分发；
+
+		2）公钥加密：也就是不对称加密
+			密钥对儿：public key: pk, secret key: sk
+                        公钥从密钥中提取产生，公开给所有人
+			用处：
+				身份认证：发送方使用自己的私钥加密数据，接收方使用与之公钥解密；
+				密钥交换：发送方使用接收方的公钥加密一个密钥，接收方使用自己的私钥解密；
+
+			算法：
+				RSA
+				DSA
+				ELGamal
+
+		3）单向加密：也称消息摘要
+			特性：定长输出、雪崩效应
+			算法：MD5(128bits)、SHA1(160bits)、SHA224、SHA256、SHA384、SHA512
+			功能：提取数据指纹
+
+		4）密钥交换：IKE Internet Key Exchange  互联网密钥交换
+			  发送方使用接收方的公钥加密一个密钥，接收方使用自己的私钥解密；
+			DH（Deffie-Hellman）：
+				A: P, G, 
+					p^x%G
+				B: P, G, 
+					P^y/G
+
+					A: (p^y%G)^x=p^yx%G
+					B: (p^x%G)^y=p^xy%G
+                4种加密算法总结：
+                        对称加密：
+                                对数据加密
+                        公钥加密：
+                                身份认证
+                                密钥交换（对密钥进行加密）
+                        单向加密：确保数据的完整性
+                        密钥交换
+
+		PKI：Public Key Infrastructure
+			签证机构: CA
+			注册机构：RA
+			证书吊销列表：CRL
+			证书存取库
+
+		x.509：定义了证书结构和认证协议标准
+			版本号
+			序列号
+			签名算法ID
+			发行者的名称
+			有效期
+			主体名称      （也就是证书的主体名称必须要与你访问的站点名称一模一样，否则浏览器会报错--重要）
+			主体公钥
+			发行者唯一标识符
+			主体的唯一标识
+			扩展
+			发行者的签名
+                ssl是由网景公司研发，所以网景公司有版权，其版本有V1，V2，V3
+                由于网景公司对ssl有版权，所以IETF这个国际组织开发了ssl的替代品tls，我们常说的ssl是ssl/tls的统称，
+                openssl是ssl/tls协议的开源实现软件
+                TLS的分层设计：
+                        1）最底层：基础算法原语的实现，AES,RSA,md5
+                        2）向上一层：各种算法的实现
+                        3）再向上一层：组合算法实现的半成品
+                        4）用各种组件拼装而成的各种产品密码学协议软件
+17-3
+
+	ssl: secure socket layer，版本有sslv1, sslv2, sslv3
+	tls: transport layer security，版本有tlsv1.0，tlsv1.1，tlsv1.2
+	http(80/tcp) --> ssl --> https(443/tcp)  也就是http调用了ssl协议
+        应用层--》ssl--》tcp--》ip               也就是ssl是加在应用层和tcp层之间的
+        linux系统：GPG(pgp协议)、openssl（ssl协议）
+   
+        openSSL是为网络通信提供安全及数据完整性的一种安全协议，它通过一种开放源代码的SSL协议，实现网络通信的高强度加密
+	openssl程序包包括如下3个部分：
+		  openssl：多用途的命令行工具，各功能分别使用子命令实现；
+		libcrypto：公共加密库
+		   libssl：ssl协议的实现
+ssl会话的3步骤：
+       1）客户端向服务器端索要证书并验证
+       2）双方协商生成‘会话密钥’，此会话密钥就是对称加密密钥
+       3）双方基于会话密钥进行加密通信
+
+
+1）和2）两步又分为如下4个阶段，如下4个阶段也称为ssl handshake protocol即ssl的握手认证协议
+第一阶段：clienthello
+       支持的协议版本，比如tls 1.0/1.1/1.2/1.3
+       客户端生成一个随机数，主要用于生成会话密钥
+       支持的加密算法，比如DES,RSA
+       支持的压缩算法
+第二阶段：serverhello
+       确认使用的加密通信协议及版本
+       服务器生成一个随机数，主要用于生成会话密钥
+       确认使用的加密算法
+       服务器证书
+第三阶段:
+       验证服务器证书
+       发送以下信息给服务器端：
+                        一个随机数
+                        编程变更通知，表示随后的信息都采用商定的加密算法和密钥进行发送
+                        客户端握手结束通知
+第四阶段：
+       收到客户端发来的第2个随机数pre-master-key后，计算生成本次会话所得到的会话密钥
+       编程变更通知，表示随后的信息都采用商定的加密算法和密钥进行发送
+       服务器端握手结束通知
+
+
+
+openssl补充学习：                
+       假设bob要向alice发送数据
+       1）用单向加密算法对数据提取特征码
+       2）用bob的私钥对特征码进行加密，做身份认证
+       3）将数据和提取出来的特征码打包在一起，用对称加密算法进行加密，此时的对称加密密钥就是会话密钥
+       4）用alice的公钥对对称加密密钥进行加密
+       详细参考笔记2中的2017.1.21的草稿图
+
+openssl的子命令分为3类：
+        标准命令（包括消息摘要和加密），常见标准命令有enc，ca，genrsa，req等
+        消息摘要（dgst命令）
+            加密（enc命令）   
+
+
+openssl命令行：
+[root@localhost ~]# openssl --help 
+openssl:Error: '--help' is an invalid command.
+
+Standard commands 标准命令
+asn1parse         ca                ciphers           cms               
+crl               crl2pkcs7         dgst              dh                
+dhparam           dsa               dsaparam          ec                
+ecparam           enc               engine            errstr            
+gendh             gendsa            genpkey           genrsa            
+nseq              ocsp              passwd            pkcs12            
+pkcs7             pkcs8             pkey              pkeyparam         
+pkeyutl           prime             rand              req               
+rsa               rsautl            s_client          s_server          
+s_time            sess_id           smime             speed             
+spkac             ts                verify            version           
+x509              
+
+Message Digest commands (see the `dgst' command for more details)
+md2               md4               md5               rmd160            
+sha               sha1              
+
+Cipher commands (see the `enc' command for more details)
+aes-128-cbc       aes-128-ecb       aes-192-cbc       aes-192-ecb       
+aes-256-cbc       aes-256-ecb       base64            bf                
+bf-cbc            bf-cfb            bf-ecb            bf-ofb            
+camellia-128-cbc  camellia-128-ecb  camellia-192-cbc  camellia-192-ecb  
+camellia-256-cbc  camellia-256-ecb  cast              cast-cbc          
+cast5-cbc         cast5-cfb         cast5-ecb         cast5-ofb         
+des               des-cbc           des-cfb           des-ecb           
+des-ede           des-ede-cbc       des-ede-cfb       des-ede-ofb       
+des-ede3          des-ede3-cbc      des-ede3-cfb      des-ede3-ofb      
+des-ofb           des3              desx              idea              
+idea-cbc          idea-cfb          idea-ecb          idea-ofb          
+rc2               rc2-40-cbc        rc2-64-cbc        rc2-cbc           
+rc2-cfb           rc2-ecb           rc2-ofb           rc4               
+rc4-40            seed              seed-cbc          seed-cfb          
+seed-ecb          seed-ofb          zlib        
+		openssl version
+
+		对称加密：
+			工具：openssl enc, gpg
+			算法：des, des3, aes, blowfish, twofhish, rc6, idea, cast5
+
+			enc工具：
+				# openssl enc -e -CIPHERNAME -a -salt -in /path/from/somefile        -out /path/to/somecipher.file
+				# openssl enc -d -CIPHERNAME -a -salt -in /path/from/somecipher.file -out /path/to/someclear.file
+                                  CIPHERNAME指的就是加密算法，比如des, 3des, aes等
+举例如下：证明了加密和解密都是同一个密钥
+    # openssl enc -e -des  -a -salt -in /etc/fstab    -out fstab.enc
+    # openssl enc -d -des  -a -salt -in fstab.enc     -out fstab
+      -e表示加密，-d表示解密，-des表示加密算法，-a表示base64编码格式（如果不指定，默认是二进制编码），-salt表示杂质，-in表示输入文件，-out表示输出文件，  
+
+		单向加密：
+			特性：One-Way, Collision-free
+
+			算法：md5, sha1, sha256, sha384, sha512
+
+			工具：md5sum, sha1sum, sha256sum, sha512sum, openssl dgst, chsum
+
+			用法：
+				# openssl dgst [-md5|-sha1] [-out /path/to/somedgst.file] /path/from/someclear.file
+举例如下：
+[root@localhost ~]# openssl dgst  -md5 /etc/fstab 
+ MD5(/etc/fstab)= 40ea0c2caefc6baadaa611fac9bdf874
+
+			MAC：消息认证码，单向加密的一种延伸应用，用于实现在网络通信中保证所传输的数据的完整性；
+
+				机制：
+					CBC-MAC
+					HMAC： 使用md5或sha1算法
+
+			生成用户密码：
+				openssl passwd -1 -salt string
+举例如下：
+[root@localhost ~]# openssl passwd -1 -salt 123 
+Password: 
+$1$123$oYQTBT2wGwqSTJYdReyUb
+生成的密码格式是版本+salt+个人输入的数字
+[root@localhost ~]# openssl passwd --help 
+Usage: passwd [options] [passwords]
+where options are
+-crypt             standard Unix password algorithm (default)
+-1                 MD5-based password algorithm 表示加密算法
+-apr1              MD5-based password algorithm, Apache variant 表示加密算法
+-salt string       use provided salt
+-in file           read passwords from file
+-stdin             read passwords from stdin
+-noverify          never verify when reading password from terminal
+-quiet             no warnings
+-table             format output as table
+-reverse           switch table columns
+
+
+			生成随机数：
+				openssl rand -base64|-hex NUM
+				NUM: 表字节；-hex时（hex表示16进制），每个字符为4位，因此，两个字符为一个字节；
+举例如下：
+[root@localhost ~]# openssl  rand --help 
+Usage: rand [options] num
+where options are
+-out file             - write to file
+-engine e             - use engine e, possibly a hardware device.
+-rand file:file:... - seed PRNG from files
+-base64               - base64 encode output 表示编码格式
+-hex                  - hex encode output 表示编码格式
+[root@localhost ~]# openssl  rand -base64 10 
+eUPbJOfHCLVilg==
+[root@localhost ~]# openssl  rand -hex 10 
+dfa452359b3c65c0e5b9
+
+		公钥加密：
+
+			加密：
+				算法：RSA, ELGamal
+				工具：gpg, openssl rsautl
+
+			数字签名：
+				算法：RSA, DSA, ELGamal
+
+				DSA：Digital Signature Algorithm 数字签名算法
+				DSS: Digital Signature Standard  数字签名标准
+
+			密钥交换：
+				算法：公钥加密、DH
+
+
+			生成密钥对儿：
+				# (umask 077; openssl genrsa -out /path/to/PRIVATEKEY.FILE NUM_BITS)
+                                  括号表示在子shell内起作用，umask 077表示只有自己可读写
+举例如下：
+ [root@localhost ~]# (umask 077; openssl genrsa -out genrsa)
+Generating RSA private key, 1024 bit long modulus
+.....++++++
+.......................++++++
+e is 65537 (0x10001)
+[root@localhost ~]# openssl rsa -in genrsa  -pubout 
+writing RSA key
+-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCtvagOauQJZ1x5W/MPfYXME83S
+v9aJnHcYWB+jmPVPT3RRPqzo1YZ7VlL4USu99HXV0ZjelA2HtPkLPQ8glL4PfDhF
+YZP0b53olEkoO/lWqnVTaXdbuHvEoo8fkeeYAolAGF36ebb1yp/NpJlq76/2MGpA
+LiVsRbQlJezoo5HfjwIDAQAB
+-----END PUBLIC KEY-----
+
+				从私钥中提取公钥：
+					# openssl rsa -in /patn/from/PRIVATEKEY.FILE -pubout
+
+
+回顾：加密、解密，openssl，ssl
+	加密、解密：
+		对称加密：数据加密
+		公钥加密：认证、密钥交换、加密
+		单向加密：完整性校验
+		密钥交换：
+          各类型的算法：
+		  对称：3DES, AES
+		  公钥：RSA, DSA,
+		  单向：md5, sha1
+		  密钥交换：DH
+
+	PKI：Public Key Infrastructure
+		CA, RA, CRL, 证书存取库
+
+	SSL: Secure Socket Layer, SSLv3, 
+	TLS: Transport Layer Security, tlsv1
+
+	openssl:
+		openssl, libcrypto, libssl
+
+
+OpenSSL构建私有CA	
+	X.509证书
+	构建私有CA：
+		1、生成私钥；
+		2、自签署证书；
+	给节点发放证书：
+		1、节点申请证书：
+			生成私钥
+			生成证书签署请求
+			把请求文件发送给CA
+		2、CA签署证书：
+			验正请求者的信息
+			签署证书
+			把签署好的证书发还给请求者
+	证书吊销CA
+	项目：openca
+             /dev/random：仅从熵池中返回随机数，如果随机数用完，等待新的随机数产生
+            /dev/urandom：从熵池中返回随机数，如果随机数用完，利用软件产生伪随机数
+	一、建立私有CA
+		openssl的主配置文件：/etc/pki/tls/openssl.cnf
+			[CA_default]
+				dir: CA的主目录
+				certs: 已颁发证书的存储位置
+				crl_dir：已吊销证书的存储位置
+				database：证书索引文件
+				new_certs_dir：新颁发证书的存储位置
+				certificate：CA证书文件
+				serial：证书颁发时的当前序列号
+				crlnumber：吊销证书的当前序列号
+				crl：当前使用的CRL
+				private_key: CA私钥
+				RANDFILE：私有随机数生成器文件
+			1、生成私钥文件
+				# cd /etc/pki/CA
+				# (umask 077; openssl genrsa -out private/cakey.pem 2048) 
+                                  2048表示私钥长度，默认是512，可选的数字有2048,4096等, 私钥名称cakey.pem必须与/etc/pki/tls/openssl.cnf里面的名称保持一致
+			2、生成自签署证书
+				req子命令：生成PKCS#10格式的证书签署请求
+					-new: 生成新的证书签署请求；
+					-key /path/to/private_key_file：私钥文件路径；
+					-days n：证书有效时长；
+					-out /path/to/request_file: 生成的证书请求文件路径；
+					-x509: 生成签证书，专用于创建私有CA；
+					-newkey rsa:NUM  无需事先专门生成私钥文件，而是生成请求时直接生成私钥，并提取公钥用于证书；
+创建私有CA的详细步骤：
+    cd /etc/pki/CA
+    (umask 077; openssl genrsa -out private/cakey.pem 2048)
+    openssl req -new -x509 -key private/cakey.pem -days 3655 -out cacert.pem    (要同/etc/pki/tls/openssl.cnf中的名称保持一致)
+    mkdir certs crl newcerts 如果这3个目录没有才创建，有就不用创建了
+    touch ./{index.txt,serial}
+    echo 01 > serial 
+    cat serial 验证01内容是否已经生成
+
+	二、给节点发放证书：
+		1、节点申请证书：在申请证书的主机上进行
+			假设：用httpd服务，因此其位置为/etc/httpd/conf/certs/
+			生成私钥
+				# (umask 077; openssl genrsa -out httpd.key 1024)
+			生成证书签署请求
+				# openssl req -new -key httpd.key -out httpd.csr -days NUM  csr表示centificat siging request
+				注意：其subject信息中位置的公司要与CA的保持一致；
+			把请求文件发送给CA
+				# scp httpd.csr CA_IP:/tmp/
+		2、CA签署证书：在CA主机上执行如下命令
+			验正请求者的信息；
+			签署证书
+				# openssl ca -in /path/from/REQ.csr -out /path/to/somefile.crt -days NUM
+			把签署好的证书发还给请求者:
+				# scp /path/to/somefile.crt REQ_HOST:/path/to/somewhere/
+			注意：每一个需要接收服务器发来的证书，并验正证书合法性的客户端主机，都必须拥有CA的证书才能进行；
+		3、查看证书中的相关信息
+			# openssl x509 -in /path/to/somefile.crt -noout -text|-subject|-serial
+给节点颁发证书的具体步骤：
+   1）申请节点192.168.139.184
+      1.1(umask 077; openssl genrsa -out httpd.key 1024)
+      1.2[root@node1 conf]# openssl req -new  -days 365   -key httpd.key  -out httpd.csr
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [XX]:ch
+State or Province Name (full name) []:guangdong
+Locality Name (eg, city) [Default City]:shenzheng
+Organization Name (eg, company) [Default Company Ltd]:bencent
+Organizational Unit Name (eg, section) []:rd
+Common Name (eg, your name or your server's hostname) []:chenhao---这里最好填写http服务器的主机名
+Email Address []:
+
+Please enter the following 'extra' attributes
+to be sent with your certificate request
+A challenge password []:  留空即可
+An optional company name []:留空即可
+      1.2 scp httpd.csr  192.168.139.171:/root
+
+  2)颁发证书节点192.168.139.171
+     2.1 cd /etc/pki/CA
+     2.2(umask 077; openssl genrsa -out private/cakey.pem 2048)
+     2.3[root@localhost CA]# openssl req -new -x509 -days 365  -key private/cakey.pem  -out cacert.pem 
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [XX]:ch
+State or Province Name (full name) []:guangdong
+Locality Name (eg, city) [Default City]:shenzheng
+Organization Name (eg, company) [Default Company Ltd]:bencent
+Organizational Unit Name (eg, section) []:rd
+Common Name (eg, your name or your server's hostname) []:chenhao---这里最好填写主机名称
+Email Address []:
+      2.4touch ./{index.txt,serial}
+      2.5echo 01 > serial
+      2.6openssl ca -in /root/httpd.csr -out /root/httpd.crt -days 365
+      2.7scp  /root/httpd.crt 192.168.139.184:/root
+	三、吊销证书
+		(一) 获取证书的serial (在证书持有端进行)
+			# openssl x509 -in /path/to/somefile.crt -noout -serial -subject
+                               -subject表示print subject DN
+                               -noout表示no certificate output
+		(二) CA
+			1、根据证书持有者提交的serial和subject信息来与index.txt数据库文件中的信息是否一致；
+			2、吊销证书
+				# openssl ca -revoke /etc/pki/CA/newcerts/SERIAL.pem
+			3、生成吊销证书的编号（如果是第一次吊销）
+				# echo 01 > /etc/pki/CA/crlnumber
+			4、更新证书吊销列表
+				# cd /etc/pki/CA/crl/
+				# openssl ca -gencrl -out thisca.crl
+				注意：查看crl文件的方法
+					# openssl crl -in /path/from/somefile.crl -noout -text
+	总结：用到的子命令genrsa, req, ca, x509, crl
+	博客作业：加密、解密图解；openssl自建CA
+	验正证书：
+		1、使用CA的公钥的解密证书的数字签名；
+		2、使用同样的单向加密算法提取证书文件特征码，对比解密的结果；
+		3、验正主体名称与请求的服务器地址是否相同；
+
+
+
+22
+OpenSSH：
+	
+	ssh协议：Secure SHell
+
+	telnet,  23/tcp
+		172.16.100.6:23  Socket
+
+		应用层协议：远程登录
+
+		C/S：telnet, telnetd
+
+		注意：禁止root用户直接登录；
+
+	Linux的守护进程有两类：
+		独立守护进程
+		瞬时守护进程：由超级守护进程xinetd代为监听
+
+		安装：yum install telent-server
+		启动：chkconfig telent on; service xinetd start; ss -tnlp | grep :23
+
+	ssh协议：22/tcp
+		sshv1, sshv2
+		sshv1基于CRC-32做MAC，不安全；
+		sshv2基于双方主机的协商选择使用最安全的MAC方式；
+			基于DH算法做密钥交换，基于RSA或DSA实现身份认证；
+			客户端通过检查服务器端的主机密钥来判断是否能够继续通信；
+
+		两种方式的认证：
+			基于口令
+			基于RSA或DSA密钥
+
+		openssh是ssh协议的一种开源实现；
+			sshd: 服务器端
+			ssh：客户端
+				scp: 跨主机基于加密通信进行文件复制
+				sftp：基于ftp的工作模型，通过ssh协议实现共享的子系统
+
+				Windows版客户端：
+					xshell
+					putty
+					securecrt
+					sshsecureshellclient
+
+		配置文件：
+			sshd: /etc/ssh/sshd_config
+			ssh: /etc/ssh/ssh_config
+
+		客户端组件：ssh
+			ssh [USER@]HOST [COMMAND]
+			ssh [-l USER] HOST [COMMAND]
+				USER默认为当前主机上的用户名；
+
+				-p PORT: 指明要连接的端口；默认为22；
+
+		客户端组件：scp
+			利用ssh协议在主机之间安全实现文件传输；
+				scp [options] SRC... DEST/
+
+			分两种情形：
+				PULL：scp [options] [USER@]HOST:/path/from/somefile  /path/to/somewhere
+				PUSH：scp [options] /path/from/somefile  [USER@]HOST:/patn/to/somewhere
+
+				常用选项：
+					-r: 递归复制，复制目录时使用；
+					-p: 保持源文件的元数据信息，主要是mode和timestamp信息；
+					-q: 静默模式
+					-P PORT: 指定远程服务器的监听端口
+
+		客户端组件：sftp
+			基于ssh协议实现的ftp服务的客户端程序
+			服务器端：sshd自带了sftp服务器程序；
+
+			sftp [USER@]HOST
+			sftp> get, put, cd, lcd
+
+		服务器端：sshd
+
+			基于RSA密钥的认证：
+				在客户端
+					1、# ssh-keygen -t rsa
+						-P '': 私钥加密密码
+						-f ~/.ssh/id_rsa: 指定私钥文件
+					2、# ssh-copy-id [-i ~/.ssh/id_rsa.pub] [USER@]HOST
+
+					3、验正：
+					ssh [USER@]HOST
+
+			用户或组黑白名单：
+				AllowUsers, AllowGroups, DenyUsers, DenyGroups
+
+案例：
+客户端基于无密钥登录服务器端，也就是客户端把公钥的内容转换成authorized_keys发给服务器端，
+此时只能实现客户器端无密钥登录服务器端，但是服务器端不能无密钥登录客户端
+
+客户端做如下操作
+[root@localhost ~]# ssh-keygen
+[root@localhost ~]# cd .ssh
+[root@localhost .ssh]# cat id_rsa.pub >authorized_keys
+[root@localhost .ssh]# scp authorized_keys  192.168.139.136:/root/.ssh/
+
+
+		ssh服务最佳实践：
+			1、不要使用默认端口；
+			2、不要使用protocol 1；
+			3、限制可登录用户；
+			4、设定空闲会话超时时长；
+			5、利用防火墙设置ssh访问策略；
+			6、仅监听特定的IP地址，而非本机的所有地址；
+			7、使用强密码策略
+			   # tr -dc A-Za-z0-9_ < /dev/urandom | head -c 30 | xargs
+			8、使用基于密钥的认证
+			9、禁止使用空密码
+			10、禁止root直接登录
+			11、限制ssh的访问频度
+			12、做好日志，经常分析
+
+	dropbear：另一个ssh服务的实现，开源版本；
+
+
+	
+18-1
+回顾：openssl CA, openssh
+	CA：
+		openssl: /etc/pki/tls/openss.cnf
+		/etc/pki/CA
+			private/cakey.pem
+			cacert.pem
+		生成私钥-->生成签署请求(.csr)-->发送给CA-->核验请求者的信息-->签署
+		子命令：genrsa, req, ca, crl, gencrl, x509
+
+	OpenSSH:
+		sshv2: 22/tcp <-- telnet (23/tcp)
+		openssh:
+			服务器端: sshd
+			客户端：ssh, scp, sftp
+			工具：ssh-keygen, ssh-copy-id
+			sshd: /etc/ssh/sshd_config
+				service sshd {reload|restart|start|stop|status}
+					reload: 22 --> 22022

@@ -1,0 +1,423 @@
+﻿网络知识补充：
+案例：
+TCP负责发现传输的问题，一有问题就发出信号，要求重新传输，直到所有数据安全正确地传输到目的地
+虚拟终端协议(TELNET，TELecommunications NETwork)
+OSI中的层                          功能                                        TCP/IP协议族
+应用层                   文件传输，电子邮件，文件服务，虚拟终端      TFTP，HTTP，SNMP，FTP，SMTP，DNS，Telnet 等等
+表示层                   数据格式化，代码转换，数据加密              没有协议
+会话层                   解除或建立与别的接点的联系                  没有协议
+传输层                   提供端对端的接口                            TCP，UDP
+网络层                   为数据包选择路由                            IP，ICMP，OSPF，EIGRP，IGMP
+数据链路层               传输有地址的帧以及错误检测功能              SLIP，CSLIP，PPP，MTU
+物理层                   以二进制数据形式在物理媒体上传输数据        ISO2110，IEEE802，IEEE802.2
+ethernet以太网络使用CSMA/CD（Carrier Sense Multiple Access with Collision Detection）带有冲突检测的载波监听多路访问技术
+ethernet规定了多台电脑共享一个通道的方法
+TCP/IP                            OSI
+应用层                            应用层
+                                  表示层
+                                  会话层
+主机到主机层（TCP）               传输层
+网络层（IP）                      网络层
+
+网络接口层（又称链路层）          数据链路层
+                                  物理层
+常见的网络接口层协议有：Ethernet 802.3（上层就是IP层）、Token Ring 802.5、X.25、Frame relay、HDLC、PPP ATM等。--针对TCP/IP 协议来的，非常重要
+发送者如何知道接收者的MAC地址？
+发送者如何知道接收者和自己同属一个子网？
+如果接收者和自己不在同一个子网，数据包如何发给对方？
+为了解决这些问题，网络层引入了三个协议，分别是IP协议、ARP协议、路由协议。
+链路层定义了主机的身份，即MAC地址， 而网络层定义了IP地址，明确了主机所在的网段，有了这两个地址，数据包就从可以从一个主机发送到另一台主机。
+但实际上数据包是从一个主机的某个应用程序发出，然后由对方主机的应用程序接收。
+1）ARP首先会发起一个请求数据包，数据包的首部包含了目标主机的IP地址，然后这个数据包会在链路层进行再次包装，生成以太网数据包，最终由以太网广播给子网内的所有主机，
+   每一台主机都会接收到这个数据包，并取出标头里的IP地址，然后和自己的IP地址进行比较，如果相同就返回自己的MAC地址，如果不同就丢弃该数据包。
+   ARP接收返回消息，以此确定目标机的MAC地址；与此同时，ARP还会将返回的MAC地址与对应的IP地址存入本机ARP缓存中并保留一定时间，下次请求时直接查询ARP缓存以节约资源。
+   arp -a 就可以查询本机缓存的ARP数据。
+2）有了MAC地址以后，以太网采用广播形式，把数据包发给该子网内所有主机，子网内每台主机在接收到这个包以后，都会读取首部里的目标MAC地址，然后和自己的MAC地址进行对比，
+   如果相同就做下一步处理，如果不同，就丢弃这个包。
+总结：
+链路层：对0和1进行分组，定义数据帧，确认主机的物理地址，传输数据；
+网络层：定义IP地址，确认主机所在的网络位置，并通过IP进行MAC寻址，对外网数据包进行路由转发；
+传输层：定义端口，确认主机上应用程序的身份，并将数据包交给对应的应用程序；
+应用层：定义数据格式，并按照对应的格式解读数据。
+
+在OSI七层协议中，第二层（数据链路层）位于软件包和硬件数据帧中间
+路由和网关的区别
+
+什么是静态路由，其特点是什么？什么是动态路由，其特点是什么？
+参考答案：
+静态路由是由系统管理员设计与构建的路由表规定的路由。适用于网关数量有限的场合，且网络拓朴结构不经常变化的网络。
+其缺点是不能动态地适用网络状况的变化，当网络状况变化后必须由网络管理员修改路由表。
+动态路由是由路由选择协议而动态构建的，路由协议之间通过交换各自所拥有的路由信息实时更新路由表的内容。动态路由可以自动学习网络的拓朴结构，并更新路由表。
+其缺点是路由广播更新信息将占据大量的网络带宽。
+
+
+11-1
+Linux网络属性配置					
+ 计算机网络：	
+ TCP/IP：协议栈（使用）	
+ ISO，OSI：协议栈（学习）
+ MAC：Media Access Control
+ 48bits：				
+ ICANN：24bits, 2^24				
+ 地址块：2^24		
+ 网桥（bridge）：MAC地址表				
+ 静态指定：		
+ 动态学习：根据原地址学习；			
+ 交换机（switch）：多端口网桥；	
+ IP(Internet protocol)地址：网络号+主机号
+ IPv4：32bits
+ 8bits.8bits.8bits.8bits  0-255			 
+ 0.0.0.0-255.255.255.255		
+IP地址分类：			 
+A类：						
+  第一段为网络号且最高位为0，后三段为主机号（核心）					
+  网络号：0 000 0000 - 0 111 1111，即0~127
+  网络数量：126						
+  每个网络中的主机数量：2^24-2 （去除掉网络地址和广播地址）							
+  默认子网掩码：255.0.0.0或者/8					
+  子网掩码用于与IP地址按位进行“与”运算，从而取出其网络地址；						
+  1.3.2.1/255.0.0.0 = 1.0.0.0		
+  1.3.2.1/255.255.0.0= 1.3.0.0					
+  私网地址：10.0.0.0-10.255.255.255		
+B类：			
+  前两段为网络号且最高两位为10，后两段为主机号(核心)							
+  网络号：10 00 0000 - 10 11 1111，即128~191								
+  网络数：2^14-2，			
+  每个网络中的主机数量：2^16-2							
+  默认子网掩码：255.255.0.0或/16
+  私网地址：172.16.0.0-172.31.255.255								
+C类：
+ 前三段为网络号且最高两位为110，最后一段为主机号（核心）							
+ 网络号：110 0 0000 - 110 1 1111，即192-223						
+ 网络数：2^21-2
+ 每个网络中的主机数量：2^8-2						
+ 默认子网掩码：255.255.255.0,  /24
+ 私网地址：192.168.0.0-192.168.255.255	
+D类：组播
+1110 0000 - 1110 1111：224-239
+E类：科研
+240-255	
+IPv6：128bits					
+路由器：router					
+路由表：						
+  静态指定				  
+  动态学习：rip2, ospf					
+路由条目：	  
+目标地址：下一跳(nexthop)							
+目标地址的类别：	  
+  主机：主机路由							
+  网络：网络路由			
+0.0.0.0/0.0.0.0：默认路由							
+OS：多用户，多任务
+多任务：多进程
+ chrome：		
+    QQ：		
+    QQ Music：	
+通信时，进程的数字标识：
+16bits：
+0-65535：1-65535				
+   1-1023：固定分配，而且只有管理员有权限启用；		   
+   1024-4W：半固定，
+   4W+：临时；
+进程地址：IP:PORT,  socket
+总结：
+  MAC：本地通信；范围：本地局域网；		
+  IP：界定通信主机，源和目标；范围：互联网；
+  Port：界定进程；范围：主机 ；	
+将Linux主机接入到网络中：
+ IP/NETMASK：本地通信
+ 路由（网关）：跨网络通信
+ DNS服务器地址：基于主机名的通信
+    主DNS服务器地址
+    备用DNS服务器地址	
+    第三备份DNS服务器地址
+配置方式：
+  静态指定：
+      命令：				
+       ifcfg家族：					
+           ifconfig：配置IP，NETMASK         
+           route：路由		
+           netstat：状态及统计数据查看			
+       iproute2家族：		
+          ip OBJECT：					
+               addr：地址和掩码；		      
+               link：接口			
+               route：路由			
+          ss：状态及统计数据查看		
+CentOS 7：nm(Network Manager)家族		
+          nmcli：命令行工具
+          nmtui：text window 可直接修改配置文件								
+注意：
+(1) DNS服务器指定								
+    配置文件：/etc/resolv.conf			
+(2) 本地主机名配置
+     hostname命令						
+     配置件：/etc/sysconfig/network					
+CentOS 7：hostnamectl					
+配置文件：
+RedHat及相关发行版
+/etc/sysconfig/network-scripts/ifcfg-NETCARD_NAME		
+   动态分配：依赖于本地网络中有DHCP服务，DHCP：Dynamic Host Configure Procotol
+网络接口命名方式：
+传统命名：	
+ 以太网：ethX, [0,oo)，例如eth0, eth1, ...		
+ PPP网络：pppX, [0,...], 例如，ppp0, ppp1, ...
+	可预测命名方案CentOS）：
+   支持多种不同的命名机制：
+   Fireware, 拓扑结构		
+(1) 如果Firmware或BIOS为主板上集成的设备提供的索引信息可用，则根据此索引进行命名，如eno1, eno2, ...	
+(2) 如果Firmware或BIOS为PCI-E扩展槽所提供的索引信息可用，且可预测，则根据此索引进行命名，如ens1, ens2, ...
+(3) 如果硬件接口的物理位置信息可用，则根据此信息命名，如enp2s0, ...
+(4) 如果用户显式定义，也可根据MAC地址命名，例如enx122161ab2e10, ...
+上述均不可用，则仍使用传统方式命名；
+命名格式的组成：
+   en：ethernet		
+   wl：wlan			   
+   ww：wwan			
+名称类型：				
+  o<index>：集成设备的设备索引号；	
+  s<slot>：扩展槽的索引号；	
+  x<MAC>：基于MAC地址的命名；		
+  p<bus>s<slot>：基于总线及槽的拓扑结构进行命名；
+
+回顾：
+计算机网络基础、Linux网络属性配置	
+TCP/IP协议栈：网络接口层、互联网层、传输层、应用层		 
+ 互联网层：IP，ICMP,ARP协议，路由协议
+ 传输层：TCP， UDP	
+ 应用层：http, https, ftp, ldap, ...
+ 链路层：以太网帧
+ 互联网层：IP报文
+ 以太网帧：MTU（1500）
+Linux网络属性配置：命令，配置文件；
+Linux网络属性配置（2）
+ifcfg命令家族： ifconfig, route, netstat
+ifconfig命令：接口及地址查看和管理
+ifconfig  [INTERFACE]
+# ifconfig -a：显示所有接口，包括inactive状态的接口；	
+ifconfig interface [aftype] options | address ...
+# ifconfig  IFACE  IP/MASK  [up|down]
+# ifconfig  IFACE  IP  netmask  NETMASK  
+        options：
+        [-]promisc		
+注意：立即送往内核中的TCP/IP协议栈，并生效；
+管理IPv6地址：
+  add addr/prefixlen			
+  del  addr/prefixlen
+route命令：路由查看及管理	
+路由条目类型：	
+  主机路由：目标地址为单个IP；			
+  网络路由：目标地址为IP网络；	
+  默认路由：目标为任意网络，0.0.0.0/0.0.0.0
+查看：
+route  -n			
+添加：			
+route  add  [-net|-host]  target  [netmask  Nm]  [gw GW]  [[dev] If]	
+示例：
+route add  -net  10.0.0.0/8       gw  192.168.10.1  dev  eth1
+route add  -net  0.0.0.0/0.0.0.0  gw 192.168.10.1  	            
+route add  default  gw 192.168.10.1  
+删除：
+route  del  [-net|-host] target  [gw Gw]  [netmask Nm]  [[dev] If]	
+示例： 
+route  del  -net  10.0.0.0/8  gw 192.168.10.1
+route  del  default
+案例:
+Linux 主机的/etc/rc.d/rc.inet1 文件中有如下语句，某请修正错误，并解释其内容。
+/etc/rc.d/rc.inet1：
+……
+ROUTE add –net default gw 192.168.0.101 netmask 255.255.0.0 metric 1
+ROUTE add –net 192.168.1.0 gw 192.168.0.250 netmask 255.255.0.0 metric 1
+参考答案:
+修正错误:
+（1）ROUTE应改为小写：route；
+（2）netmask 255.255.0.0 应改为:netmask 255.255.255.0；
+（3）缺省路由的子网掩码应改为:netmask 0.0.0.0；
+（4）缺省路由必须在最后设定,否则其后的路由将无效。
+解释内容:
+metric 1：到达目标网络经过的路由器数，也就是跳数
+netstat命令：
+Print network connections, routing tables, interface statistics, masquerade connections, and multicast  memberships
+示例：
+显示路由表			
+netstat  -rn				
+          -r：显示内核路由表		  
+          -n：数字格式
+显示网络连接：		
+netstat  [--tcp|-t]  [--udp|-u]  [--udplite|-U] [--sctp|-S]  [--raw|-w]  [--listening|-l]  [--all|-a]  [--numeric|-n]   [--extend|-e[--extend|-e]]  [--program|-p]	  
+          -t：TCP协议的相关连接，连接均有其状态；FSM（Finate State Machine，有限状态机）				
+          -u：UDP相关的连接
+          -w：raw socket（裸套接字）相关的连接		
+          -l：处于监听状态的连接
+          -a：所有状态	
+          -n：以数字格式显示IP和Port；			
+          -e：扩展格式	
+          -p：显示相关的进程及PID；
+常用组合：
+-tan,  -uan,  -tnl,  -unl,  -tunlp
+传输层协议：	
+   tcp：面向连接的协议；通信开始之前，要建立一个虚链路；通信完成后还要拆除连接；		   
+   udp：无连接的协议；直接发送数据报文；
+显示接口的统计数据：
+netstat {--interfaces|-I|-i}    [iface]   [--all|-a]   [--extend|-e]   [--verbose|-v]   [--program|-p]  [--numeric|-n]	
+        所有接口：netstat  -i		
+        指定接口：netstat  -I<IFace>
+ifup/ifdown命令：			
+注意：通过配置文件/etc/sysconfig/network-scripts/ifcfg-IFACE来识别接口并完成配置；
+
+配置主机名：		
+   hostname命令（当前系统有效，重启后无效；）			
+    查看：hostname		
+    配置：hostname  HOSTNAME
+hostnamectl命令（CentOS 7）：
+    hostnamectl  status：显示当前主机名信息；
+    hostnamectl  set-hostname：设定主机名，永久有效；
+    配置文件：/etc/sysconfig/network
+              HOSTNAME=<HOSTNAME>
+注意：此方法的设置不会立即生效； 但以后会一直有效；
+			
+配置DNS服务器指向：
+配置文件：/etc/resolv.conf	
+           nameserver   DNS_SERVER_IP
+如何测试(host/nslookup/dig)：
+# dig  -t  A  FQDN		
+  FQDN --> IP
+# dig  -x  IP				
+  IP --> FQDN
+iproute家族： 	
+  ip命令：		
+ip家族命令							
+ip  link  set [device] [动作与参数]				
+        动作与参数有如下这些						
+        up和down：		
+        multicast on或multicast off：启用或禁用多播功能；				        
+        name NAME：重命名接口
+        mtu NUMBER：设置MTU的大小，默认为1500；
+        address ADRESS,用这个参数修改设备的MAC地址			
+        netns PID：ns为namespace，用于将接口移动到指定的网络名称空间；			
+ip  link  show  - display device attributes		
+ip  link  help -  显示简要使用帮助；
+ip netns（在Centos6上需要 yum install -y iproute-devel ）
+   ip  netns  list：列出所有的netns
+   ip  netns  add  NAME：创建指定的netns	
+   ip  netns  del  NAME：删除指定的netns
+   ip  netns  exec  NAME  COMMAND：在指定的netns中运行命令
+ip address 				
+   ip  addr  add  IFADDR  dev  IFACE  [相关参数]
+      相关参数有下面这些：
+      [label NAME]：为额外添加的地址指明接口别名；
+      [broadcast ADDRESS]：广播地址；会根据IP和NETMASK自动计算得到；如果设置为+，表示让系统自动计算
+      [scope SCOPE_VALUE]，scope表示路由的范围,SCOPE_VALUE有如下这些
+           global：全局可用，即允许所有来源的主机连接，这是默认值								
+           link：仅允许本设备自我连接		   
+           host：仅允许本机内部的连接												
+ip  addr  delete  IFADDR  dev  IFACE 
+ip  addr  show  [IFACE]：显示接口的地址；					
+ip  route  												   
+   ip  route  add  TYPE PREFIX  via GW  [dev  IFACE]  					
+   ip  route  add 192.168.0.0/24  via 10.0.0.1  dev  eth1				
+   ip  route  add default  via  GW，添加默认路由						
+   ip  route  del  TYPE PRIFIX
+   ip  route  del  192.168.1.0/24
+   ip  route  show，用list也可以										
+ss命令：
+ss  [options]  [ FILTER ]
+options：
+          -t：TCP协议的相关连接
+          -u：UDP相关的连接
+          -w：raw socket相关的连接		
+          -l：监听状态的连接	
+          -a：所有状态的连接		
+          -n：数字格式		
+          -p：相关的程序及其PID			
+          -e：扩展格式信息		
+          -m：内存用量		
+          -o：计时器信息		
+FILTER :
+     [ state TCP-STATE ]  [ EXPRESSION ]		
+         常见的TCP-STATE：	  						
+                        LISTEN：监听				
+                        ESTABLISEHD：已经建立的连接
+                        FIN_WAIT_1：该套接字服务已中断，该连接正在断线中	
+                        FIN_WAIT_2：该连接已经中断，但是正在等待对方主机响应断线确认的数据包							     
+                        SYN_SENT：发出主动连接（SYN标志）的连接数据包						
+                        SYN_RECV：接收到一个要求连接的主动连接数据包						
+                        CLOSED：
+          EXPRESSION：			
+                       dport = 
+                       sport = 						
+示例：						
+~]# ss  -tan    '(dport = :22 or sport = :22)'     ( dport = :22 or sport = :22)中间必须要有空格									
+~]# ss  -tan  state  ESTABLISHED
+IP/NETMASK/GW/DNS等属性的配置文件：/etc/sysconfig/network-scripts/ifcfg-IFACE
+路由的相关配置文件：/etc/sysconfig/networkj-scripts/route-IFACE （没有找到该配置文件）				
+配置文件/etc/sysconfig/network-scripts/ifcfg-IFACE通过大量参数来定义接口的属性；
+  其可通过vim等文本编辑器直接修改
+  也可以使用专用的命令的进行修改（CentOS 6：system-config-network (setup)，CentOS 7: nmtui）
+ifcfg-IFACE配置文件参数：
+  DEVICE：此配置文件对应的设备的名称；
+  ONBOOT：在系统引导过程中，是否激活此接口；
+  UUID：此设备的惟一标识；
+  IPV6INIT：是否初始化IPv6；	
+  BOOTPROTO：激活此接口时使用什么协议来配置接口属性，常用的有dhcp、bootp、static、none；	
+  TYPE：接口类型，常见的有Ethernet, Bridge；（首子母必须大写）
+  DNS1：第一DNS服务器指向；
+  DNS2：备用DNS服务器指向；	  
+  DOMAIN：DNS搜索域；	
+  IPADDR：IP地址；		
+  NETMASK：子网掩码；CentOS 7支持使用PREFIX以长度方式指明子网掩码；
+  GATEWAY：默认网关；
+  USERCTL：是否允许普通用户控制此设备；		
+  PEERDNS：如果BOOTPROTO的值为“dhcp”，是否允许dhcp server分配的dns服务器指向覆盖本地手动指定的DNS服务器指向；默认为允许；
+  HWADDR：设备的MAC地址；
+  NM_CONTROLLED：是否使用NetworkManager服务来控制接口；
+
+补充内容：
+手动添加dns地址    
+   vim /etc/resolv.conf 
+       nameserver 192.168.1.17
+   vim /etc/sysconfig/network-scripts/ifcfg-eth0
+       PEERDNS=no    
+解释如下
+1)DHCP环境下，在/etc/resolv.conf手动添加dns地址后，重启网卡service NetworkManager restart会自动清除，因为/etc/resolv.conf是由NetworkManager产生的
+2)DHCP环境下，如果PEERDNS=no，则添加到/etc/sysconfig/network-scripts/ifcfg-eth0的dns地址即使重启NetworkManager也不会清除。但PEERDNS默认为yes
+3)静态配置IP的环境下，/etc/resolv.conf手动添加dns地址，重启后不会清除；
+		
+网络服务：				
+   network			
+   NetworkManager 			
+管理网络服务：
+   CentOS 6:  service  SERVICE  {start|stop|restart|status}				
+   CentOS 7： systemctl  {start|stop|restart|status}  SERVICE[.service]
+配置文件修改之后，如果要生效，需要重启网络服务；
+   CentOS 6：# service    network  restart
+   CentOS 7：# systemctl  restart  network.service
+用到非默认网关路由：/etc/sysconfig/network-scripts/route-IFACE
+支持两种配置方式，但不可混用；（network和NetworkManager只能选其一）
+(1) 每行一个路由条目：
+	TARGET  via  GW
+(2) 每三行一个路由条目：
+        ADDRESS#=TARGET				
+        NETMASK#=MASK				
+        GATEWAY#=NEXTHOP			
+给接口配置多个地址：
+ ip addr之外，ifconfig或配置文件都可以；
+(1) ifconfig  IFACE_LABEL  IPADDR/NETMASK
+              IFACE_LABEL： eth0:0, eth0:1, ...	
+(2) 为别名添加配置文件；
+    DEVICE=IFACE_LABEL
+    BOOTPROTO：网上别名不支持动态获取地址；static, none
+nmcli命令：
+  nmcli  [ OPTIONS ] OBJECT { COMMAND | help }
+	 interfaces			
+  COMMAND := { status | show | connect | disconnect | delete | wifi | wimax }			
+  COMMAND := { show | up | down | add | edit | modify | delete | reload | load }
+  modify [ id | uuid | path ] <ID> [+|-]<setting>.<property> <value>
+博客作业：上述所有内容；
+ifcfg, ip/ss，配置文件 
+课外作业：nmap, ncat, tcpdump命令；
+回顾：ip命令，ss命令；配置文件；CentOS 7
+ifcfg、ip、netstat、ss
+配置文件：
+/etc/sysconfig/network-scripts/ifcfg-IFNAME|route-IFNAME
+

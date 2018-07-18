@@ -1,0 +1,341 @@
+23-1
+数据传输格式是按位传输：ASCII或者binary
+计算机存储：按字节存储
+file server:ftp,samba,nfs
+ftp:是明文协议
+服务器端：vsftpd，pureftpd,filezilla server
+客户端：
+   linux:ftp,lftp
+   windows:filezilla
+ftp的连接类型：
+   命令连接：传输命令，21/tcp端口。不管数据连接是主动还是被动模式，命令连接都是由客户端向服务器端发起请求
+   数据连接：传输数据，数据连接必然是通过某个命令连接发起的的，数据连接分为主动和被动两种模式
+             主动连接：即port模式，服务器端向客户端发起请求，此时服务器端固定端口20/tcp
+             被动连接：即pasv模式，客户端向服务器端发起请求，此时服务器端口随机
+
+主动模式（Active FTP）:
+在主动模式下，FTP 客户端随机开启一个大于1024 的端口N 向服务器的21号端口发起连接，然后开放N+1号端口进行监听，并向服务器发出PORT N+1命令。
+服务器接收到命令后，会用其本地的FTP 数据端口（通常是20）来连接客户端指定的端口N+1，进行数据传输。
+
+被动模式（Passive FTP）:
+FTP 客户端随机开启一个大于1024 的端口N向服务器的21 号端口发起连接，同时会开启N+1号端口。然后向服务器发送PASV 命令，通知服务器自己处于被动模式。
+服务器收到命令后，会开放一个大于1024 的端口P 进行监听，然后用PORT P 命令通知客户端，自己的数据端口是P。
+客户端收到命令后，会通过N+1 号端口连接服务器的端口P，然后在两个端口之间进行数据传输。
+
+总结：
+    主动模式传送数据时是“服务器”连接到“客户端”的端口；被动模式传送数据是“客户端”连接到“服务器”的端口。
+    主动模式需要客户端必须开放端口给服务器，很多客户端都是在防火墙内，开放端口给FTP服务器访问比较困难。被动模式只需要服务器端开放端口给客户端连接就行了。
+
+ftp用户分类：
+    匿名用户：映射至某一个固定的系统用户家目录，匿名用户的家目录就是ftp的家目录/var/ftp,匿名用户获取的身份是ftp账号
+    本地用户：即实体用户，root和系统用户（0~999）,默认情况下ftp服务没有对本地用户进行限制
+    虚拟用户：即guest，nsswitch也就是name service switch，或者pam
+
+23-2
+vstfp配置文件/etc/vstfp/vstftp.conf说明，可以使用man 5 vsftpd.conf来查看帮助
+与服务器环境相关的设置
+connect_timeout=60
+data_connection_timeout=300
+idel_session_timeout=300
+pasv_min_port=
+pasv_max_port=
+listen_port=21
+connect_from_port_20=YES 主动模式下的数据连接端口
+listen=YES               YES表示vsftpd是以stand alone的方式启动
+pasv_enable=YES          yes表示支持数据连接的被动模式
+use_localtime=YES        yes表示使用本地时间，设置为no表示使用GMT即格林尼治时间
+write_eanble=YES         yes表示允许用户上传数据
+max_clients=0           最大并发连接数
+max_per_ip=0            每个ip允许发起的最大连接数
+banner_file=/etc/vsftpd/welcome.txt  该设置可以指定某个纯文本文件作为用户登录vsftpd服务时所显示的欢迎信息
+
+与实体用户相关的设置值
+local_enable=YES         只有为yes时，/etc/passwd内的账号才能以实体用户的方式登录服务；所有的非匿名用户的生效（本地用户+虚拟用户）都要依赖此命令
+                         也只有为yes时，所有与实体用户相关的指令才会生效
+guest_enable=NO          yes表示任何实体用户账号均会被假设为guest，所以一般情况下该值为no。guest用户在vsftpd中默认取得ftp用户的权限，但是可以通过gues_username来修改
+guest_username=USERNAME  guest_enable=YES时，该指令才会生效
+local_max_rate=          实体用户也即本地用户的传输速率
+chroot_local_user=yes    禁锢所有本地用户，同时需要chroot_list_enable和chroot_list_file指令的配合，而且此时要求用户对家目录不能有写权限
+chroot_list_enable=yes   启用chroot写入列表的功能
+chroot_list_file=/etc/vsftpd/chroot_list     写入到此文件的账号不会被chroot，没有被写入到此文件的账号会被chroot，注意区别
+userlist_enable=YES      借助vsftpd的阻挡机制来处理某些不受欢迎的账号。启用该选项时，同时需要userlist_deny和userlist_deny指令的配合
+userlist_deny=yes        当userlist_enable=YES时才会生效，此列表为黑名单
+userlist_deny=no         此列表为白名单
+userlist_file=/etc/vsftpd/user_list 如果userlist_deny=yes，则在/etc/vsftpd/user_list内的账号都无法登录ftp服务
+local_umask=022
+
+与匿名用户相关的设置
+anonymous_enable=YES          为yes表示匿名用户可以登录服务
+no_anon_password=YES          yes表示匿名用户不需要密码验证
+anon_world_readable_only=YES  为yes表示仅允许匿名用户可以下载有可读权限的文件
+anon_other_write_enable=NO    是否允许匿名用户有除了写权限外的其他权限，比如删除文件等，默认为no即不允许
+anon_mkdir_write_enable=NO    是否让匿名用户有建立目录的权限，默认为no
+anon_upload_enable=NO         匿名用户是否有上传操作权限，默认为no。如果设置为yes，则要write_enable=yes才能生效
+anon_max_rate=0               现在匿名用户的传输速率，如果是0则表示不限制（由最大带宽限制），如果设置为3000，则表示为30000bytes/s
+anon_umask=077                限制匿名用户上传到服务器后的文件权限
+chown_uploads=                是否修改匿名用户上传的文件属主，需要chown_username和chown_upload_mode的配合
+chown_username=
+chown_upload_mode=644         权限
+
+系统安全相关的设置
+xferlog_enable=YES  如下三项是针对数据传输日志的
+xferlog_file=/var/log/xferlog
+xferlog_std_format=YES
+tcp_wrappers=YES    yes表示支持tcp_wrappers的防火墙机制，即受/etc/hosts.allow和/etc/hosts.deny文件的控制
+
+
+vsftpd的安装
+[root@localhost ~]# yum install lftp -y            安装客户端lftp，lftp比ftp好用，所以客户端ftp不需要安装
+[root@localhost ~]# yum install vsftpd -y 
+[root@localhost ~]# ll /etc/vsftpd/
+total 20
+-rw------- 1 root root  125 Mar 22  2017 ftpusers   要想让/etc/passwd内的账号不能登录ftp服务，需要同时修改ftpusers和user_list文件，然后重启服务
+-rw------- 1 root root  361 Mar 22  2017 user_list
+-rw------- 1 root root 4620 Sep 26 03:26 vsftpd.conf
+-rwxr--r-- 1 root root  338 Mar 22  2017 vsftpd_conf_migrate.sh
+[root@localhost ~]# service vsftpd start
+1）安装好服务后，在不修改配置文件条件下，匿名用户和本地用户都可以登录ftp服务（除了ftpusers和user_list里面的限制用户）
+[root@localhost ~]# lftp -u chenhao,chenhao 192.168.139.130   
+lftp chenhao@192.168.139.130:~>
+说明：上面使用账号chenhao和密码chenhao登录ftp服务，此时就到了账号chenhao的家目录/home/chenhao，
+      如果没有对实体账号进行chroot，则此时可以进入账号chenhao有权限进入的任何目录。如果想要做chroot，修改/etc/vsftpd/chroot_list即可
+2）仅让匿名用户可以登录，而且匿名用户不需要密码验证。匿名用户还可以上传/下载资料
+[root@localhost vsftpd]# vim /etc/vsftpd/vsftpd.conf
+write_enable=YES
+anon_upload_enable=YES
+anon_mkdir_write_enable=YES
+anon_other_write_enable=YES
+no_anon_password=YES
+local_enable=NO
+
+说明：
+  （1）anon_other_write_enable=YES和no_anon_password=YES必须写在anon_upload_enable=YES，anon_mkdir_write_enable=YES的后面，否则服务启动不了
+  （2）设置了anon_other_write_enable=YES，no_anon_password=YES，anon_upload_enable=YES，anon_mkdir_write_enable=YES4这4个参数后，
+       表示允许匿名用户拥有完整的建立，删除，修改文件与目录的权限。但是，实际要生效还需要linux的文件系统权限正确才可以。
+       也就是对下面的upload目录，要执行完chown ftp:ftp  /var/ftp/upload后才真正可以下载和上传文件
+[root@localhost ~]# service vsftpd restart
+[root@localhost ~]# mkdir /var/ftp/upload
+[root@localhost ~]# chown ftp:ftp  /var/ftp/upload
+[root@localhost ~]# lftp 192.168.139.130   没有跟用户时默认就是匿名用户,此时/etc/passwd文件内的用户就不能登录了
+lftp 192.168.139.130:~> ls 
+drwxr-xr-x    3 0        0            4096 Sep 25 21:32 pub
+drwxr-xr-x    2 14       50           4096 Sep 25 21:30 upload
+lftp 192.168.139.130:/> bye
+[root@localhost ~]# ll /var/ftp/ 
+total 8
+drwxr-xr-x 2 root root 4096 Oct 31 03:25 pub     注意此时匿名用户在pub目录里面还是只能下载文件，不能上传文件
+drwxr-xr-x 2 ftp  ftp  4096 Oct 31 03:27 upload  匿名用户在upload目录里面可以同时下载和上传文件
+3)让vsftpd支持ssl功能
+[root@localhost vsftpd]# ldd $(which vsftpd)|grep ssl  必须要确保有ssl支持才可以
+	libssl.so.10 => /usr/lib64/libssl.so.10 (0x00007f6e23ee2000)
+[root@localhost vsftpd]# cd  /etc/pki/tls/certs/ 必须要切换到此目录里面来才能执行make   vsftpd.pem
+[root@localhost certs]# make   vsftpd.pem  这个命令输入后会要求填入很多信息，照着填写即可
+[root@localhost certs]# ll
+total 1712
+-rw-r--r--. 1 root root 757191 Sep  4  2013 ca-bundle.crt
+-rw-r--r--. 1 root root 978662 Sep  4  2013 ca-bundle.trust.crt
+-rwxr-xr-x. 1 root root    610 Nov 22  2013 make-dummy-cert
+-rw-r--r--. 1 root root   2242 Nov 22  2013 Makefile
+-rwxr-xr-x. 1 root root    829 Nov 22  2013 renew-dummy-cert
+-rw-------  1 root root   2966 Sep 26 05:50 vsftpd.pem
+[root@localhost certs]# cp -a vsftpd.pem /etc/vsftpd/
+[root@localhost certs]# ll /etc/vsftpd/vsftpd.pem 注意查看权限
+-rw------- 1 root root 2966 Sep 26 05:50 vsftpd.pem
+[root@localhost certs]# vim /etc/vsftpd/vsftpd.conf  在原有配置文件基础上增加如下ssl代码
+ssl_enable=YES
+allow_anon_ssl=NO
+force_local_data_ssl=YES
+force_local_logins_ssl=YES
+ssl_tlsv1=YES
+ssl_sslv2=NO
+ssl_sslv3=NO
+rsa_cert_file=/etc/vsftpd/vsftpd.pem
+[root@localhost certs]# service vsftpd restart
+案例:自动上传或者下载文件
+[root@localhost ~]# vim lftp.sh 
+open 192.168.139.132
+cd /upload
+put install.log
+bye
+[root@localhost ~]# lftp -f  lftp.sh
+[root@localhost ~]# lftp 192.168.139.132
+lftp 192.168.139.132:/> ls upload/
+-rw-------    1 14       50          53023 Oct 30 20:17 install.log
+详细请参考鸟哥网络篇146页
+
+
+23-3
+NFS
+  rpcbind---111port
+  nfs-------2049/tcp
+23-4
+NFS是内核级文件系统，仅能用于unix间通信，不能用于windows通信
+NFS：nfsv1，nfsv2，nfsv3
+nfsd：2049/tcp,由nfs-utils安装
+nfs的配置文件:/etc/exports，其内部的每一行内容格式如下
+/path to somedir  ip(options1,options2...)
+                ip的格式:
+                    wildcards：主机名通配，比如*.chenhao.com
+                    anonymous: 表示使*通配所有客户端
+                options:
+                    rw
+                    root_squash
+                    no_root_squash
+                    anonuid and anougid:映射至何用户
+rpcinfo                   查看每个rpc服务的注册情况
+exports                   重新导出文件系统
+exports -r                重新加载/etc/exports
+showmount -e nfsserver_ip 显示配置文件/etc/exports共享出来的目录
+mount -t nfs nfsserver_ip:/path to somedir  /mountpoint
+一个NFS的简单操作案例：
+[root@localhost ~]# vim /etc/exports 
+/mydata  192.168.139.0/24(rw,no_root_squash)
+[root@localhost ~]# mkdir /mydata
+[root@localhost ~]# service nfs start 
+[root@localhost ~]# ss -tunl 查看111和2049端口是否处于监听状态
+[root@localhost ~]# showmount -e 192.168.139.132   显示配置文件/etc/exports共享出来的目录，NFS服务所在主机地址为192.168.139.132
+Export list for 192.168.139.132:
+/mydata 192.168.139.0/24
+[root@localhost ~]# mount -t nfs 192.168.139.132:/mydata /mnt
+现在可以在/mnt目录内复制修改文件等
+
+
+
+23-5
+SAMBA
+  smb：service message block
+  cifs：common internet file system 只能用于windows之间，也就是网上邻居
+samba功能：
+     文件系统共享
+     打印机共享
+     NetBIOS协议：network basic input/output system ，用于windows网络上的主机名解析
+
+peer/peer(wordgroup model)对等模式
+domain model主控模式
+服务端程序：
+yum install -y samba
+nmbd:NetBIOS name server
+smbd:SMB/CIFS service 
+samba的主配置文件/etc/samba/smb.conf，该配置文件由samba-common提供
+客户端程序：
+   smbclient 交互式的命令行客户端
+   mount -t cifs 
+
+服务器端监听的端口：
+   nmbd监听137/udp和138/udp
+   smbd监听139/tcp和445/tcp
+
+主配置文件/etc/samba/smb.conf的说明：
+    全局配置 [global]
+    每共享的专用配置 [共享资源的共享名称]
+全局配置：
+    workgroup= 当前samba主机所属工作组
+    netbios name= 当前samba主机的netbios名称
+    server string=主机备注信息
+    display charset= 当前samba服务所用字符集
+    unix charset= 当前linux主机所用字符集
+    dos charset= windows的字符集
+    interfaces=samba服务监听的地址和网络接口
+    hosts allow=客户端来源名单
+    log file 
+    max log size
+    standalone server options
+               security=user 设定安全级别，取值为以下三者之一
+                        share：匿名共享
+                        user：使用smaba服务自我管理的账号，使用密码进行认证，用户必须为os用户，但是密码是访问samba服务的密码
+                        doamin：使用DC(domain control)进行用户认证
+               passbd backend=tdbsam 密码库文件的格式
+注意:linux系统已经存在的用户才能添加为samba用户，非系统用户不能添加
+     sampasswd [options] username
+               options:
+                 -a 添加用户
+                 -x 删除用户
+                 -d 禁用用户
+                 -e 启用用户
+
+samba的客户端使用：
+    客户端是linux主机：
+         smbclient -L //SAMBAIP -U username
+         mount -t cifs -o username=username passwd=passwd  //ip/sharename  /mountpoint
+    客户端是windows主机：
+         \\ip\sharedname dirname
+
+3-6
+共享配置
+       [共享名称]
+           comment 注释信息
+           path 此共享对应本地文件系统路径
+           browseable 是否可以被所有用户看到
+           writable 表示所有人是否可写
+           read only
+           write list 仅列出来的用户或组可写，如果是组名要使用@组名格式
+注意：writable和write list不可以同时使用
+
+testparm  用于检查配置文件/etc/smaba/smb.conf语法是否有问题
+
+可用的宏列表：
+    %m 客户端主机的netbios名称
+    %M 客户端的internet主机，即host name
+    %H 当前用户的家目录
+    %g 当前用户的所属的组名
+    %h 当前samba主机的hostname
+    %I 客户端主机ip
+    %T 当前的日期时间
+pdbedit命令，类似smbpasswd，用于管理smb用户
+pdbedit[options]
+   -L 列出所有的smb用户
+   -a  -u username添加用户
+   -x 删除用户
+   -r 修改用户的相关信息
+smbstatus命令，用于显示samba server的相关共享访问状态
+
+
+
+samba的安装配置实列
+[root@localhost ~]# yum install samba -y 
+[root@localhost ~]# vim /etc/samba/smb.conf
+[homes]
+        comment = Home Directories
+        browseable = no
+        writable = yes
+        create mode = 0664
+        directory mode = 0777
+[root@localhost ~]# service smb start 
+[root@localhost ~]# service nmb start
+[root@localhost ~]# testparm     语法检测，必须不能出现错误
+Load smb config files from /etc/samba/smb.conf
+rlimit_max: increasing rlimit_max (1024) to minimum Windows limit (16384)   出现该问题，请执行如下补充步骤即可
+Processing section "[homes]"
+Processing section "[printers]"
+Processing section "[print$]"
+Loaded services file OK.
+Server role: ROLE_STANDALONE
+补充步骤：
+[root@localhost local]# vim /etc/security/limits.conf 
+#@student        -       maxlogins       4
+ *               -        nofile         16384
+# End of file
+[root@localhost ~]# smbpasswd -a chenhao  添加用户
+[root@localhost ~]# pdbedit -L 查看用户
+chenhao:1000:chenhao
+chenhao1:1001:
+[root@localhost ~]# smbclient  -L //192.168.139.132 -U chenhao 
+Enter chenhao's password: 
+Domain=[MYGROUP] OS=[Unix] Server=[Samba 3.6.23-43.el6_9]
+
+	Sharename       Type      Comment
+	---------       ----      -------
+	IPC$            IPC       IPC Service (Samba Server Version 3.6.23-43.el6_9)
+	chenhao         Disk      Home Directories
+Domain=[MYGROUP] OS=[Unix] Server=[Samba 3.6.23-43.el6_9]
+
+	Server               Comment
+	---------            -------
+	LOCALHOST            Samba Server Version 3.6.23-43.el6_9
+
+	Workgroup            Master
+	---------            -------
+	MYGROUP              LOCALHOST
+
+[root@localhost ~]# mount -t cifs -o username=chenhao //192.168.139.132/chenhao   /mnt  
+注意：上面显示的Sharename是chenhao，所以此处就写//192.168.139.132/chenhao，不要写成//192.168.139.132/home/chenhao，切记
